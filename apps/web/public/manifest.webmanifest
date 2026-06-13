@@ -1,0 +1,25 @@
+{
+  "name": "Pennora",
+  "short_name": "Pennora",
+  "description": "Budget smarter, track every naira.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FCF9E8",
+  "theme_color": "#201B21",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

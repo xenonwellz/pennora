@@ -1,0 +1,263 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: "Raleway", system-ui, sans-serif;
+    --font-sans: "Raleway", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --color-success: var(--color-success);
+    --color-warning: var(--color-warning);
+    --color-expense: var(--color-expense);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: oklch(0.982 0.008 102);
+    --foreground: oklch(0.14 0.012 55);
+    --card: oklch(0.995 0.004 102);
+    --card-foreground: oklch(0.18 0.012 55);
+    --popover: oklch(0.995 0.004 102);
+    --popover-foreground: oklch(0.18 0.012 55);
+    --primary: oklch(0.24 0.030 55);
+    --primary-foreground: oklch(0.97 0.008 102);
+    --secondary: oklch(0.955 0.008 102);
+    --secondary-foreground: oklch(0.25 0.015 55);
+    --muted: oklch(0.950 0.008 102);
+    --muted-foreground: oklch(0.48 0.010 55);
+    --accent: oklch(0.940 0.015 102);
+    --accent-foreground: oklch(0.25 0.015 55);
+    --destructive: oklch(0.55 0.20 25);
+    --border: oklch(0.925 0.008 102);
+    --input: oklch(0.925 0.008 102);
+    --ring: oklch(0.24 0.030 55);
+    --chart-1: oklch(0.24 0.030 55);
+    --chart-2: oklch(0.50 0.10 260);
+    --chart-3: oklch(0.58 0.08 60);
+    --chart-4: oklch(0.40 0.10 55);
+    --chart-5: oklch(0.65 0.06 102);
+    --radius: 0.75rem;
+    --sidebar: oklch(0.22 0.030 55);
+    --sidebar-foreground: oklch(0.93 0.008 102);
+    --sidebar-primary: oklch(0.93 0.008 102);
+    --sidebar-primary-foreground: oklch(0.18 0.025 55);
+    --sidebar-accent: oklch(0.28 0.035 55);
+    --sidebar-accent-foreground: oklch(0.96 0.005 102);
+    --sidebar-border: oklch(0.35 0.030 55);
+    --sidebar-ring: oklch(0.45 0.030 55);
+    --color-success: oklch(0.55 0.14 155);
+    --color-warning: oklch(0.72 0.14 75);
+    --color-expense: oklch(0.55 0.20 25);
+    --color-surface: oklch(0.990 0.005 102);
+}
+
+.dark {
+    --background: oklch(0.16 0.012 55);
+    --foreground: oklch(0.96 0.008 102);
+    --card: oklch(0.20 0.012 55);
+    --card-foreground: oklch(0.96 0.008 102);
+    --popover: oklch(0.20 0.012 55);
+    --popover-foreground: oklch(0.96 0.008 102);
+    --primary: oklch(0.96 0.008 102);
+    --primary-foreground: oklch(0.16 0.012 55);
+    --secondary: oklch(0.22 0.015 55);
+    --secondary-foreground: oklch(0.96 0.008 102);
+    --muted: oklch(0.22 0.015 55);
+    --muted-foreground: oklch(0.65 0.010 55);
+    --accent: oklch(0.26 0.020 55);
+    --accent-foreground: oklch(0.96 0.008 102);
+    --destructive: oklch(0.62 0.18 25);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 12%);
+    --ring: oklch(0.96 0.008 102);
+    --chart-1: oklch(0.96 0.008 102);
+    --chart-2: oklch(0.60 0.10 260);
+    --chart-3: oklch(0.68 0.08 60);
+    --chart-4: oklch(0.55 0.10 55);
+    --chart-5: oklch(0.75 0.06 102);
+    --sidebar: oklch(0.10 0.025 55);
+    --sidebar-foreground: oklch(0.93 0.008 102);
+    --sidebar-primary: oklch(0.93 0.008 102);
+    --sidebar-primary-foreground: oklch(0.12 0.025 55);
+    --sidebar-accent: oklch(0.16 0.030 55);
+    --sidebar-accent-foreground: oklch(0.96 0.005 102);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.40 0.030 55);
+    --color-success: oklch(0.65 0.14 155);
+    --color-warning: oklch(0.78 0.14 75);
+    --color-expense: oklch(0.62 0.18 25);
+    --color-surface: oklch(0.18 0.012 55);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+    html {
+        @apply font-sans;
+    }
+    body {
+        @apply bg-background text-foreground;
+        -webkit-font-smoothing: auto;
+        -moz-osx-font-smoothing: auto;
+    }
+    button:not(:disabled),
+    [role="button"]:not(:disabled) {
+        cursor: pointer;
+    }
+    ::selection {
+        @apply bg-primary/20 text-foreground;
+    }
+}
+
+.font-mono {
+    font-family: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
+}
+
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-family: "JetBrains Mono Variable", ui-monospace, monospace;
+}
+
+@utility animate-in {
+    animation: fade-in 0.2s ease-out, zoom-in-95 0.2s ease-out;
+}
+
+@utility slide-in-from-top-2 {
+    animation: slide-from-top 0.2s ease-out;
+}
+
+@utility slide-in-from-bottom-2 {
+    animation: slide-from-bottom 0.2s ease-out;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes zoom-in-95 {
+    from { transform: scale(0.95); }
+    to { transform: scale(1); }
+}
+
+@keyframes slide-from-top {
+    from { transform: translateY(-4px); }
+    to { transform: translateY(0); }
+}
+
+@keyframes slide-from-bottom {
+    from { transform: translateY(4px); }
+    to { transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        oklch(1 0 0 / 5%) 50%,
+        transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+/* Auth gradient orbs */
+.orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(80px);
+    opacity: 0.5;
+    will-change: transform;
+}
+.orb-1 {
+    width: 320px;
+    height: 320px;
+    background: oklch(0.55 0.06 55);
+    top: -80px;
+    left: -60px;
+    animation: orb-float-1 14s ease-in-out infinite;
+}
+.orb-2 {
+    width: 260px;
+    height: 260px;
+    background: oklch(0.45 0.08 312);
+    bottom: -40px;
+    right: -40px;
+    animation: orb-float-2 18s ease-in-out infinite;
+}
+.orb-3 {
+    width: 200px;
+    height: 200px;
+    background: oklch(0.60 0.05 102);
+    top: 40%;
+    left: 30%;
+    animation: orb-float-3 16s ease-in-out infinite;
+}
+
+@keyframes orb-float-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(60px, 50px) scale(1.08); }
+    66% { transform: translate(-30px, 80px) scale(0.94); }
+}
+@keyframes orb-float-2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(-50px, -60px) scale(1.1); }
+    66% { transform: translate(40px, -30px) scale(0.92); }
+}
+@keyframes orb-float-3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(40px, -40px) scale(0.9); }
+    66% { transform: translate(-60px, 30px) scale(1.12); }
+}

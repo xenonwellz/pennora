@@ -1,0 +1,8 @@
+name = "expense-server"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+main = "src/index.ts"
+
+[env.production]
+vars = { BETTER_AUTH_URL = "https://api.yourdomain.com" }

@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1781355808415,
+      "tag": "0000_cynical_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781355900000,
+      "tag": "0001_ends_at_year_month",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781356000000,
+      "tag": "0002_budget_members",
+      "breakpoints": true
+    }
+  ]
+}
