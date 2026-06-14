@@ -4,7 +4,6 @@ dist/
 .env
 .env.local
 .env.*.local
-.env.deploy
 data.db
 *.db
 *.db-shm

@@ -15,13 +15,9 @@
     "format": "bun x @biomejs/biome@latest format --write .",
     "format:check": "bun x @biomejs/biome@latest format .",
     "typecheck": "turbo typecheck",
-    "deploy": "./deploy.sh",
-    "deploy:api": "./deploy.sh --only api",
-    "deploy:web": "./deploy.sh --only web",
-    "deploy:db": "./deploy.sh --only db",
-    "wrangler:api": "wrangler deploy --config wrangler.worker.toml",
-    "wrangler:web": "wrangler pages deploy apps/web/dist --project-name pennora",
-    "wrangler:db": "wrangler d1 migrations apply pennora --remote --config wrangler.worker.toml"
+    "deploy:api": "wrangler deploy --cwd apps/server",
+    "deploy:web": "wrangler pages deploy dist --project-name pennora --cwd apps/web",
+    "deploy:db": "wrangler d1 migrations apply pennora --remote --cwd apps/server"
   },
   "devDependencies": {
     "turbo": "^2.4.0",

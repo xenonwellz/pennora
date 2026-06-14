@@ -1,8 +1,8 @@
 # Pennora API — Cloudflare Worker
-# Deploy: npx wrangler deploy --config wrangler.worker.toml
+# Deploy: npx wrangler deploy
 
 name = "pennora-api"
-main = "apps/server/src/worker.ts"
+main = "src/worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -10,7 +10,7 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "pennora"
 database_id = "${D1_DATABASE_ID}"
-migrations_dir = "apps/server/src/db/migrations"
+migrations_dir = "src/db/migrations"
 
 [[r2_buckets]]
 binding = "BUCKET"
