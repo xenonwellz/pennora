@@ -1,5 +1,5 @@
 # Pennora Frontend — Cloudflare Pages
 # Deploy: npx wrangler pages deploy dist
-name = "pennora"
+name = "pennora-web"
 compatibility_date = "2025-01-01"
 pages_build_output_dir = "dist"
