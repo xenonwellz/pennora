@@ -21,6 +21,7 @@ import {
     useMonthAnalysis,
     useRateForMonth,
     useUpsertRate,
+    type BudgetItem,
 } from "../lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -290,7 +291,7 @@ function BudgetPage() {
     const handleStartPlan = async () => {
         const prevYm = prevMonth(yearMonth);
         try {
-            const prevItems = await queryClient.fetchQuery({
+            const prevItems = await queryClient.fetchQuery<BudgetItem[]>({
                 queryKey: ["budget", "items", prevYm],
                 queryFn: () => orpc.budget.getBudgetItems({ yearMonth: prevYm }),
             });
@@ -841,10 +842,10 @@ function BudgetSummary({
                     </div>
                     <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
-                            <div className="size-2 rounded-full bg-[var(--color-expense)]" />
+                            <div className="size-2 rounded-full bg-expense" />
                             <span className="text-xs font-medium text-muted-foreground">Expenses</span>
                         </div>
-                        <p className="font-mono text-lg font-semibold text-[var(--color-expense)]">
+                        <p className="font-mono text-lg font-semibold text-expense">
                             {formatAmount(totalExpenses, currency)}
                         </p>
                         {unpaidExpenses > 0 && (
@@ -863,7 +864,7 @@ function BudgetSummary({
                         </div>
                         <div className="h-2 rounded-full bg-muted overflow-hidden">
                             <div
-                                className="h-full rounded-full bg-[var(--color-success)] transition-all duration-500"
+                                className="h-full rounded-full bg-success transition-all duration-500"
                                 style={{ width: `${Math.min(100, (incomeReceived / incomeAmount) * 100)}%` }}
                             />
                         </div>
@@ -878,7 +879,7 @@ function BudgetSummary({
                         </div>
                         <div className="h-2 rounded-full bg-muted overflow-hidden">
                             <div
-                                className="h-full rounded-full bg-[var(--color-expense)] transition-all duration-500"
+                                className="h-full rounded-full bg-expense transition-all duration-500"
                                 style={{ width: `${totalExpenses > 0 ? (paidExpenses / totalExpenses) * 100 : 0}%` }}
                             />
                         </div>
@@ -886,9 +887,9 @@ function BudgetSummary({
                 )}
 
                 {incomeAmount > 0 && totalExpenses > 0 && (
-                    <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${remaining >= 0 ? "bg-[var(--color-success)]/10" : "bg-[var(--color-expense)]/10"}`}>
+                    <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${remaining >= 0 ? "bg-success/10" : "bg-expense/10"}`}>
                         <span className="text-sm font-medium">Remaining</span>
-                        <span className={`font-mono text-sm font-semibold ${remaining >= 0 ? "text-[var(--color-success)]" : "text-[var(--color-expense)]"}`}>
+                        <span className={`font-mono text-sm font-semibold ${remaining >= 0 ? "text-success" : "text-expense"}`}>
                             {remaining >= 0 ? "+" : ""}{formatAmount(remaining, currency)}
                         </span>
                     </div>
@@ -912,12 +913,12 @@ function CompletedMonthAnalytics({
     };
 }) {
     return (
-        <div className="rounded-xl border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/5 p-5 space-y-4">
+        <div className="rounded-xl border border-warning/30 bg-warning/5 p-5 space-y-4">
             <div>
                 <h3 className="text-sm font-semibold">Unpaid & defaulted expenses</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                     {analysis.unpaidCount} item{analysis.unpaidCount === 1 ? "" : "s"} totaling{" "}
-                    <span className="font-medium text-[var(--color-warning)] tabular-nums">
+                    <span className="font-medium text-warning tabular-nums">
                         {formatNGN(analysis.unpaidExpensesNgn)}
                     </span>
                 </p>
@@ -930,13 +931,13 @@ function CompletedMonthAnalytics({
                 </div>
                 <div className="rounded-lg bg-card border border-border p-3">
                     <p className="text-muted-foreground text-xs">Paid expenses</p>
-                    <p className="font-medium tabular-nums mt-0.5 text-[var(--color-success)]">
+                    <p className="font-medium tabular-nums mt-0.5 text-success">
                         {formatNGN(analysis.paidExpensesNgn)}
                     </p>
                 </div>
                 <div className="rounded-lg bg-card border border-border p-3">
                     <p className="text-muted-foreground text-xs">Unpaid total</p>
-                    <p className="font-medium tabular-nums mt-0.5 text-[var(--color-warning)]">
+                    <p className="font-medium tabular-nums mt-0.5 text-warning">
                         {formatNGN(analysis.unpaidExpensesNgn)}
                     </p>
                 </div>
@@ -959,7 +960,7 @@ function CompletedMonthAnalytics({
                                     {cat.name}
                                     <span className="text-muted-foreground ml-1.5">({cat.count})</span>
                                 </span>
-                                <span className="tabular-nums text-[var(--color-warning)] font-medium">
+                                <span className="tabular-nums text-warning font-medium">
                                     {formatNGN(cat.totalNgn)}
                                 </span>
                             </div>
@@ -974,13 +975,13 @@ function CompletedMonthAnalytics({
                     {analysis.defaultedItems.map((item) => (
                         <div
                             key={item.id}
-                            className="flex items-center justify-between py-2 px-3 text-sm rounded-lg bg-card border border-[var(--color-warning)]/20"
+                            className="flex items-center justify-between py-2 px-3 text-sm rounded-lg bg-card border border-warning/20"
                         >
                             <div className="min-w-0">
                                 <p className="font-medium truncate">{item.name}</p>
                                 <p className="text-xs text-muted-foreground">{item.categoryName}</p>
                             </div>
-                            <span className="tabular-nums text-[var(--color-warning)] font-medium shrink-0 ml-3">
+                            <span className="tabular-nums text-warning font-medium shrink-0 ml-3">
                                 {formatNGN(item.amountNgn)}
                             </span>
                         </div>
@@ -1144,7 +1145,7 @@ function BudgetRowCheckbox({
                 className="size-5"
             />
         ) : (
-            <div className={`size-3 rounded-full ${row.kind === "expense" && row.paid ? "bg-[var(--color-success)]" : "bg-muted-foreground/30"}`} />
+            <div className={`size-3 rounded-full ${row.kind === "expense" && row.paid ? "bg-success" : "bg-muted-foreground/30"}`} />
         );
     }
 
@@ -1153,10 +1154,10 @@ function BudgetRowCheckbox({
             <Checkbox
                 checked={row.isReceived}
                 onCheckedChange={onToggleIncome}
-                className="size-5 data-checked:bg-[var(--color-success)] data-checked:border-[var(--color-success)]"
+                className="size-5 data-checked:bg-success data-checked:border-success"
             />
         ) : (
-            <div className={`size-3 rounded-full ${row.isReceived ? "bg-[var(--color-success)]" : "bg-muted-foreground/30"}`} />
+            <div className={`size-3 rounded-full ${row.isReceived ? "bg-success" : "bg-muted-foreground/30"}`} />
         );
     }
 
@@ -1258,7 +1259,7 @@ function UnifiedBudgetCard({
                                 )}
                             </div>
                             <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                <span className={`text-xs font-medium ${meta.isIncome ? "text-[var(--color-success)]" : "text-muted-foreground"}`}>
+                                <span className={`text-xs font-medium ${meta.isIncome ? "text-success" : "text-muted-foreground"}`}>
                                     {meta.typeLabel}
                                 </span>
                                 <span className="text-xs text-muted-foreground">·</span>
@@ -1273,7 +1274,7 @@ function UnifiedBudgetCard({
                             </div>
                         </div>
 
-                        <span className={`font-mono text-sm font-semibold shrink-0 tabular-nums ${meta.isIncome ? "text-[var(--color-success)]" : ""}`}>
+                        <span className={`font-mono text-sm font-semibold shrink-0 tabular-nums ${meta.isIncome ? "text-success" : ""}`}>
                             {formatAmount(row.amount, row.currency)}
                         </span>
                     </div>
@@ -1334,7 +1335,7 @@ function UnifiedBudgetRow({
                 </div>
             </TableCell>
             <TableCell>
-                <span className={`text-sm font-medium ${meta.isIncome ? "text-[var(--color-success)]" : "text-muted-foreground"}`}>
+                <span className={`text-sm font-medium ${meta.isIncome ? "text-success" : "text-muted-foreground"}`}>
                     {meta.typeLabel}
                 </span>
             </TableCell>
@@ -1349,7 +1350,7 @@ function UnifiedBudgetRow({
                 )}
             </TableCell>
             <TableCell className="text-right">
-                <span className={`font-mono text-sm font-medium ${meta.isIncome ? "text-[var(--color-success)]" : ""}`}>
+                <span className={`font-mono text-sm font-medium ${meta.isIncome ? "text-success" : ""}`}>
                     {formatAmount(row.amount, row.currency)}
                 </span>
             </TableCell>

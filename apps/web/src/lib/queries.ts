@@ -43,8 +43,21 @@ export function useSetActiveBudget() {
     });
 }
 
+export interface BudgetItem {
+    id: string;
+    name: string;
+    amount: number;
+    currency: string;
+    paid: boolean;
+    isRecurring: boolean;
+    categoryId: string | null;
+    category: { name: string } | null;
+    frequencyMonths: number;
+    endsAtYearMonth: string | null;
+}
+
 export function useBudgetItems(yearMonth: string, enabled = true) {
-    return useQuery({
+    return useQuery<BudgetItem[]>({
         queryKey: ["budget", "items", yearMonth],
         queryFn: () => orpc.budget.getBudgetItems({ yearMonth }),
         enabled,
