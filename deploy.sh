@@ -62,6 +62,11 @@ BETTER_AUTH_URL="${BETTER_AUTH_URL:-https://pennora.cv}"
 APP_URL="${APP_URL:-https://pennora.cv}"
 EMAIL_FROM="${EMAIL_FROM:-Pennora <noreply@pennora.cv>}"
 
+# D1_DATABASE_ID — use from .env.deploy if set, otherwise auto-create
+if [[ -n "${D1_DATABASE_ID:-}" ]]; then
+    export D1_DATABASE_ID
+fi
+
 # --- Parse args ---
 DEPLOY_ONLY=""
 while [[ $# -gt 0 ]]; do
@@ -135,25 +140,9 @@ get_or_create_r2() {
 update_wrangler_config() {
     local db_id="$1"
 
-    info "Updating wrangler.toml with database ID..."
-
-    # Replace the placeholder database_id
-    if grep -q 'REPLACE_WITH_D1_DATABASE_ID' "$WRANGLER_CONFIG"; then
-        sed -i.bak "s|database_id = \"REPLACE_WITH_D1_DATABASE_ID\"|database_id = \"$db_id\"|" "$WRANGLER_CONFIG"
-        rm -f "$WRANGLER_CONFIG.bak"
-        ok "Updated wrangler.toml with database ID"
-    elif grep -q "database_id" "$WRANGLER_CONFIG"; then
-        # Already has a real ID, check if it matches
-        local current_id
-        current_id=$(grep -oP 'database_id = "\K[^"]+' "$WRANGLER_CONFIG" || true)
-        if [[ "$current_id" == "$db_id" ]]; then
-            ok "wrangler.toml already has correct database ID"
-        else
-            warn "Database ID changed ($current_id -> $db_id), updating..."
-            sed -i.bak "s|database_id = \"$current_id\"|database_id = \"$db_id\"|" "$WRANGLER_CONFIG"
-            rm -f "$WRANGLER_CONFIG.bak"
-        fi
-    fi
+    info "Exporting D1_DATABASE_ID..."
+    export D1_DATABASE_ID="$db_id"
+    ok "D1_DATABASE_ID=$db_id"
 }
 
 # --- Step: Install dependencies ---
@@ -204,8 +193,14 @@ echo ""
 
 # Always ensure infrastructure exists
 install_deps
-DB_ID=$(get_or_create_db)
-update_wrangler_config "$DB_ID"
+
+if [[ -z "${D1_DATABASE_ID:-}" ]]; then
+    DB_ID=$(get_or_create_db)
+    export D1_DATABASE_ID="$DB_ID"
+else
+    info "Using existing D1_DATABASE_ID: $D1_DATABASE_ID"
+fi
+
 get_or_create_r2
 
 echo ""

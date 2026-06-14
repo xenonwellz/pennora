@@ -9,7 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "pennora"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "${D1_DATABASE_ID}"
 migrations_dir = "apps/server/src/db/migrations"
 
 [[r2_buckets]]
