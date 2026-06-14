@@ -3,6 +3,7 @@
 
 name = "pennora"
 compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
 
 # Route all requests to the SPA
 [routes]
