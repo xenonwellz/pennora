@@ -1,6 +1,6 @@
 # Deploying Pennora on Cloudflare
 
-This is the **production deployment guide** for Pennora. The live app at [pennora.app](https://pennora.app) runs entirely on Cloudflare — not Docker, not a VPS.
+This is the **production deployment guide** for Pennora. The live app at [pennora.cv](https://pennora.cv) runs entirely on Cloudflare — not Docker, not a VPS.
 
 Pennora uses two Cloudflare products on the **same domain**:
 
@@ -16,7 +16,7 @@ HTTPS and the custom domain are managed by Cloudflare automatically once DNS is 
 
 ```
                          ┌──────────────────────────────┐
-  Browser (HTTPS)  ────► │  pennora.app (Cloudflare)    │
+  Browser (HTTPS)  ────► │  pennora.cv (Cloudflare)    │
                          │                              │
                          │  /api/*  ──► Worker (Hono)   │
                          │              │               │
@@ -28,12 +28,12 @@ HTTPS and the custom domain are managed by Cloudflare automatically once DNS is 
                          └──────────────────────────────┘
 ```
 
-The web client calls `/api/rpc` and `/api/auth` on the **same origin** (`window.location.origin`), so the Worker must be routed on `pennora.app/api/*` and Pages must **not** intercept those paths.
+The web client calls `/api/rpc` and `/api/auth` on the **same origin** (`window.location.origin`), so the Worker must be routed on `pennora.cv/api/*` and Pages must **not** intercept those paths.
 
 ## Prerequisites
 
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up)
-- A domain added to Cloudflare (e.g. `pennora.app`)
+- A domain added to Cloudflare (e.g. `pennora.cv`)
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) v3+
 - [Bun](https://bun.sh) 1.3+ (for building locally)
 
@@ -85,8 +85,8 @@ Edit [`apps/server/wrangler.toml`](../apps/server/wrangler.toml) and set product
 
 ```toml
 [vars]
-BETTER_AUTH_URL = "https://pennora.app"
-APP_URL = "https://pennora.app"
+BETTER_AUTH_URL = "https://pennora.cv"
+APP_URL = "https://pennora.cv"
 ```
 
 ### Secrets
@@ -108,7 +108,7 @@ npx wrangler secret put RESEND_API_KEY --config apps/server/wrangler.toml
 | Secret / var | Required | Description |
 |--------------|----------|-------------|
 | `BETTER_AUTH_SECRET` | Yes | Session signing secret (≥ 32 chars) |
-| `BETTER_AUTH_URL` | Yes | Public app URL (`https://pennora.app`) |
+| `BETTER_AUTH_URL` | Yes | Public app URL (`https://pennora.cv`) |
 | `APP_URL` | Yes | Used in invite links (usually same as above) |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
@@ -127,14 +127,14 @@ In the [Cloudflare dashboard](https://dash.cloudflare.com) → **Workers & Pages
 
 | Route | Zone |
 |-------|------|
-| `pennora.app/api/*` | `pennora.app` |
+| `pennora.cv/api/*` | `pennora.cv` |
 
 Or uncomment and fill in the `routes` block in `wrangler.toml`, then redeploy.
 
 Verify:
 
 ```bash
-curl -s https://pennora.app/api/config
+curl -s https://pennora.cv/api/config
 # → {"googleEnabled":false,"emailEnabled":false}
 ```
 
@@ -166,8 +166,8 @@ npx wrangler pages deploy apps/web/dist --project-name pennora
 In **Workers & Pages** → **pennora** (Pages) → **Custom domains**, add:
 
 ```
-pennora.app
-www.pennora.app   # optional
+pennora.cv
+www.pennora.cv   # optional
 ```
 
 Cloudflare provisions TLS automatically.
@@ -194,8 +194,8 @@ The `exclude` rule ensures `/api/*` requests reach the Worker, not Pages.
 
 | Field | Value |
 |-------|-------|
-| Authorized JavaScript origins | `https://pennora.app` |
-| Authorized redirect URIs | `https://pennora.app/api/auth/callback/google` |
+| Authorized JavaScript origins | `https://pennora.cv` |
+| Authorized redirect URIs | `https://pennora.cv/api/auth/callback/google` |
 
 4. Store the client ID and secret as Worker secrets (step 2).
 5. Redeploy the Worker if you changed vars.
@@ -203,78 +203,84 @@ The `exclude` rule ensures `/api/*` requests reach the Worker, not Pages.
 ## 5. Email with Resend (optional)
 
 1. Create an account at [Resend](https://resend.com).
-2. Verify your sending domain (e.g. `pennora.app`).
+2. Verify your sending domain (e.g. `pennora.cv`).
 3. Set `RESEND_API_KEY` as a Worker secret.
 4. Add to `wrangler.toml` `[vars]`:
 
    ```toml
-   EMAIL_FROM = "Pennora <noreply@pennora.app>"
+   EMAIL_FROM = "Pennora <noreply@pennora.cv>"
    ```
 
 Without email, password reset and invite links still work — users copy the link from the UI.
 
-## 6. CI/CD with GitHub Actions (optional)
+## 6. Local deploy script
 
-Example workflow (`.github/workflows/deploy.yml`):
+Instead of CI/CD, Pennora uses a local deploy script (`deploy.sh`) that handles everything:
 
-```yaml
-name: Deploy to Cloudflare
+### First-time setup
 
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - run: bun install
-      - run: bun run --cwd apps/web build
-
-      - name: Deploy API Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: deploy --config apps/server/wrangler.toml
-
-      - name: Apply D1 migrations
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: d1 migrations apply pennora --remote --config apps/server/wrangler.toml
-
-      - name: Deploy Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy apps/web/dist --project-name pennora
+```bash
+cp .env.deploy.example .env.deploy
+# Edit .env.deploy with your Cloudflare API token and account ID
 ```
 
-Create a [Cloudflare API token](https://dash.cloudflare.com/profile/api-tokens) with **Workers** and **Pages** edit permissions, and add it as `CLOUDFLARE_API_TOKEN` in GitHub repository secrets.
+### Deploy everything
+
+```bash
+./deploy.sh
+```
+
+This will:
+1. Create the D1 database if it doesn't exist
+2. Create the R2 bucket if it doesn't exist
+3. Update `wrangler.toml` with the database ID
+4. Apply D1 migrations
+5. Build the frontend
+6. Deploy the API worker
+7. Deploy the Pages frontend
+
+### Partial deploys
+
+```bash
+./deploy.sh --only api   # deploy only the API worker (+ migrations)
+./deploy.sh --only web   # deploy only the Pages frontend
+./deploy.sh --only db    # run migrations only
+```
+
+### npm scripts
+
+```bash
+bun run deploy         # full deploy
+bun run deploy:api     # API only
+bun run deploy:web     # Pages only
+bun run deploy:db      # migrations only
+```
+
+### Secrets
+
+After the first deploy, set sensitive values with Wrangler:
+
+```bash
+npx wrangler secret put BETTER_AUTH_SECRET --config apps/server/wrangler.toml
+npx wrangler secret put GOOGLE_CLIENT_ID --config apps/server/wrangler.toml
+npx wrangler secret put GOOGLE_CLIENT_SECRET --config apps/server/wrangler.toml
+npx wrangler secret put RESEND_API_KEY --config apps/server/wrangler.toml
+```
 
 ## 7. Updates
 
 After pulling new code:
 
 ```bash
-bun install
-
-# API + database
-npx wrangler d1 migrations apply pennora --remote --config apps/server/wrangler.toml
-npx wrangler deploy --config apps/server/wrangler.toml
-
-# Frontend
-bun run --cwd apps/web build
-npx wrangler pages deploy apps/web/dist --project-name pennora
+./deploy.sh
 ```
 
-Or let GitHub Actions deploy on push to `main`.
+Or for targeted deploys:
+
+```bash
+./deploy.sh --only api   # API + migrations
+./deploy.sh --only web   # frontend only
+```
 
 ## 8. Backups (D1)
 
@@ -292,10 +298,10 @@ To restore, use `wrangler d1 execute` with the SQL file or import via the dashbo
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `404` on `/api/config` | Worker route missing | Add `pennora.app/api/*` route to the Worker |
+| `404` on `/api/config` | Worker route missing | Add `pennora.cv/api/*` route to the Worker |
 | `404` on `/api/config` | Pages intercepting `/api` | Ensure `_routes.json` excludes `/api/*` |
-| Auth redirect loop | Wrong `BETTER_AUTH_URL` | Must be exactly `https://pennora.app` (no trailing slash) |
-| Google login fails | Redirect URI mismatch | Use `https://pennora.app/api/auth/callback/google` in Google Console |
+| Auth redirect loop | Wrong `BETTER_AUTH_URL` | Must be exactly `https://pennora.cv` (no trailing slash) |
+| Google login fails | Redirect URI mismatch | Use `https://pennora.cv/api/auth/callback/google` in Google Console |
 | CORS errors | Origin not trusted | Set `BETTER_AUTH_URL` and `APP_URL` to production URL |
 | Empty app after deploy | D1 migrations not applied | Run `wrangler d1 migrations apply … --remote` |
 | SPA routes 404 on refresh | Pages SPA fallback missing | Confirm `_routes.json` is in `apps/web/public/` |
