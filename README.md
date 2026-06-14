@@ -22,7 +22,7 @@ Pennora is a self-hostable monthly budget planner built for people who manage fi
 | Layer | Technologies |
 |-------|--------------|
 | Frontend | React 19, TanStack Router, TanStack Query, Tailwind CSS v4, shadcn/ui, Recharts, Vite |
-| Backend | Bun, Hono, oRPC, Drizzle ORM, SQLite |
+| Backend | Bun (local), Cloudflare Workers (production), Hono, oRPC, Drizzle ORM, SQLite / D1 |
 | Auth | Better Auth |
 | Monorepo | Turborepo, Bun workspaces |
 
@@ -98,7 +98,9 @@ The Vite dev server proxies `/api` to the backend. Register an account at `/regi
 
 See [`.env.example`](.env.example) for all variables.
 
-## Docker (local or single-server deploy)
+## Docker (local testing only)
+
+Docker Compose is useful for running the full stack locally without Cloudflare. It is **not** the production deployment path — see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Cloudflare.
 
 ```bash
 cp .env.example .env.docker
@@ -118,7 +120,22 @@ Stop containers:
 bun run stop
 ```
 
-For production deployment (HTTPS, reverse proxy, backups, OAuth redirects), see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+## Production deployment (Cloudflare)
+
+Pennora is deployed live on **Cloudflare** — Pages for the frontend, Workers for the API, and D1 for the database.
+
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full guide (D1 setup, Worker secrets, Pages deploy, custom domain, CI/CD).
+
+Quick reference:
+
+```bash
+# API Worker
+npx wrangler deploy --config apps/server/wrangler.toml
+
+# Frontend
+bun run --cwd apps/web build
+npx wrangler pages deploy apps/web/dist --project-name pennora
+```
 
 ## Scripts
 
@@ -127,7 +144,7 @@ For production deployment (HTTPS, reverse proxy, backups, OAuth redirects), see 
 | `bun run dev` | Start web + server in development |
 | `bun run build` | Build all packages |
 | `bun run typecheck` | Type-check all workspaces |
-| `bun run start` | Docker Compose up (build + run) |
+| `bun run start` | Docker Compose up (local testing) |
 | `bun run db:push` | Push Drizzle schema to SQLite |
 | `bun run db:generate` | Generate SQL migrations |
 

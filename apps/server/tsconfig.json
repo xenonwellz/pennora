@@ -4,7 +4,8 @@
         "noEmit": false,
         "declaration": true,
         "emitDeclarationOnly": true,
-        "outDir": "dist"
+        "outDir": "dist",
+        "types": ["@cloudflare/workers-types"]
     },
     "include": [
         "src",

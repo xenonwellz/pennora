@@ -1,240 +1,321 @@
-# Deployment guide
+# Deploying Pennora on Cloudflare
 
-This guide covers deploying Pennora to a production environment. The recommended path for most self-hosted setups is **Docker Compose** behind a reverse proxy with HTTPS.
+This is the **production deployment guide** for Pennora. The live app at [pennora.app](https://pennora.app) runs entirely on Cloudflare — not Docker, not a VPS.
+
+Pennora uses two Cloudflare products on the **same domain**:
+
+| Service | Cloudflare product | Handles |
+|---------|-------------------|---------|
+| Frontend | **Pages** | React SPA (`/`, `/budget`, `/settings`, …) |
+| API | **Worker** | `/api/*` (auth, oRPC, config) |
+| Database | **D1** | SQLite-compatible persistent storage |
+
+HTTPS and the custom domain are managed by Cloudflare automatically once DNS is on Cloudflare.
 
 ## Architecture
 
 ```
-                    ┌─────────────────┐
-   Browser ────────►│ Reverse proxy   │  (Caddy / Nginx / Traefik)
-   HTTPS            │  :443           │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              ▼                             ▼
-     ┌────────────────┐           ┌────────────────┐
-     │  web (nginx)   │  /api     │  server (Bun)  │
-     │  :80           │──────────►│  :3001         │
-     │  static SPA    │  proxy    │  Hono + oRPC   │
-     └────────────────┘           └───────┬────────┘
-                                          │
-                                          ▼
-                                 ┌────────────────┐
-                                 │ SQLite volume  │
-                                 │  /data/data.db │
-                                 └────────────────┘
+                         ┌──────────────────────────────┐
+  Browser (HTTPS)  ────► │  pennora.app (Cloudflare)    │
+                         │                              │
+                         │  /api/*  ──► Worker (Hono)   │
+                         │              │               │
+                         │              ▼               │
+                         │           D1 database        │
+                         │                              │
+                         │  /*      ──► Pages (Vite)    │
+                         │              SPA assets      │
+                         └──────────────────────────────┘
 ```
 
-In Docker Compose, the `web` container serves the built React app and proxies `/api` to the `server` container. The API never needs to be exposed publicly if all traffic goes through `web`.
+The web client calls `/api/rpc` and `/api/auth` on the **same origin** (`window.location.origin`), so the Worker must be routed on `pennora.app/api/*` and Pages must **not** intercept those paths.
 
 ## Prerequisites
 
-- A Linux server (VPS, homelab, etc.) with Docker and Docker Compose v2
-- A domain name pointing to the server (e.g. `pennora.example.com`)
-- TLS termination (Caddy, Nginx, or Traefik recommended)
+- A [Cloudflare account](https://dash.cloudflare.com/sign-up)
+- A domain added to Cloudflare (e.g. `pennora.app`)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) v3+
+- [Bun](https://bun.sh) 1.3+ (for building locally)
 
-## 1. Prepare environment variables
-
-Create `.env.docker` on the server (never commit production secrets):
-
-```env
-# Required — generate with: openssl rand -base64 32
-BETTER_AUTH_SECRET=your-production-secret-min-32-chars
-
-# Public URL users visit (must match your domain + scheme)
-BETTER_AUTH_URL=https://pennora.example.com
-APP_URL=https://pennora.example.com
-
-# Optional — Google OAuth
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-
-# Optional — transactional email (Resend)
-RESEND_API_KEY=
-EMAIL_FROM=Pennora <noreply@pennora.example.com>
-```
-
-### Variable reference
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `BETTER_AUTH_SECRET` | Yes | Session signing secret (≥ 32 chars). Rotate invalidates all sessions. |
-| `BETTER_AUTH_URL` | Yes | Public origin for auth callbacks. Must match the URL in the browser. |
-| `APP_URL` | Yes | Same as `BETTER_AUTH_URL` in most setups. Used in invite links. |
-| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
-| `RESEND_API_KEY` | No | Resend API key for email |
-| `EMAIL_FROM` | No | Sender address (required if `RESEND_API_KEY` is set) |
-
-## 2. Build and run with Docker Compose
+Log in:
 
 ```bash
-git clone https://github.com/xenonwellz/pennora.git
-cd pennora
-
-# Edit .env.docker with production values
-docker compose --env-file .env.docker up --build -d
+npx wrangler login
 ```
 
-Default exposed ports:
+## 1. Create the D1 database
 
-| Port | Service |
-|------|---------|
-| `8080` | Web (nginx + SPA) |
-| `3001` | API (optional direct access) |
+From the repo root:
+
+```bash
+npx wrangler d1 create pennora
+```
+
+Copy the `database_id` from the output into [`apps/server/wrangler.toml`](../apps/server/wrangler.toml):
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "pennora"
+database_id = "<paste-database-id-here>"
+```
+
+Apply migrations to the **remote** database:
+
+```bash
+npx wrangler d1 migrations apply pennora --remote --config apps/server/wrangler.toml
+```
+
+To inspect data:
+
+```bash
+npx wrangler d1 execute pennora --remote --command "SELECT name FROM sqlite_master WHERE type='table';"
+```
+
+### Local D1 (optional, for Worker dev)
+
+```bash
+npx wrangler d1 migrations apply pennora --local --config apps/server/wrangler.toml
+npx wrangler dev --config apps/server/wrangler.toml
+```
+
+## 2. Configure the API Worker
+
+Edit [`apps/server/wrangler.toml`](../apps/server/wrangler.toml) and set production URLs:
+
+```toml
+[vars]
+BETTER_AUTH_URL = "https://pennora.app"
+APP_URL = "https://pennora.app"
+```
+
+### Secrets
+
+Set sensitive values with Wrangler (never commit these):
+
+```bash
+# Required — generate with: openssl rand -base64 32
+npx wrangler secret put BETTER_AUTH_SECRET --config apps/server/wrangler.toml
+
+# Optional — Google OAuth
+npx wrangler secret put GOOGLE_CLIENT_ID --config apps/server/wrangler.toml
+npx wrangler secret put GOOGLE_CLIENT_SECRET --config apps/server/wrangler.toml
+
+# Optional — Resend email
+npx wrangler secret put RESEND_API_KEY --config apps/server/wrangler.toml
+```
+
+| Secret / var | Required | Description |
+|--------------|----------|-------------|
+| `BETTER_AUTH_SECRET` | Yes | Session signing secret (≥ 32 chars) |
+| `BETTER_AUTH_URL` | Yes | Public app URL (`https://pennora.app`) |
+| `APP_URL` | Yes | Used in invite links (usually same as above) |
+| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
+| `RESEND_API_KEY` | No | Resend API key |
+| `EMAIL_FROM` | No | Sender address (set as a `[vars]` entry if using Resend) |
+
+### Deploy the Worker
+
+```bash
+npx wrangler deploy --config apps/server/wrangler.toml
+```
+
+### Attach the Worker route
+
+In the [Cloudflare dashboard](https://dash.cloudflare.com) → **Workers & Pages** → your `pennora-api` worker → **Settings** → **Triggers** → **Routes**, add:
+
+| Route | Zone |
+|-------|------|
+| `pennora.app/api/*` | `pennora.app` |
+
+Or uncomment and fill in the `routes` block in `wrangler.toml`, then redeploy.
 
 Verify:
 
 ```bash
-curl -s http://localhost:8080/api/config
+curl -s https://pennora.app/api/config
+# → {"googleEnabled":false,"emailEnabled":false}
 ```
 
-You should receive JSON with `googleEnabled` and `emailEnabled` flags.
-
-## 3. Reverse proxy and HTTPS
-
-Point your reverse proxy at the `web` container on port `8080` (or map `80:80` in Compose if the proxy runs on the host).
-
-### Caddy example
-
-```
-pennora.example.com {
-    reverse_proxy localhost:8080
-}
-```
-
-Caddy handles TLS automatically via Let's Encrypt.
-
-### Nginx example
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name pennora.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/pennora.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/pennora.example.com/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-After enabling HTTPS, update `.env.docker`:
-
-```env
-BETTER_AUTH_URL=https://pennora.example.com
-APP_URL=https://pennora.example.com
-```
-
-Restart the stack:
-
-```bash
-docker compose --env-file .env.docker up -d
-```
-
-## 4. Google OAuth (optional)
-
-1. Create credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
-2. Application type: **Web application**.
-3. **Authorized JavaScript origins**: `https://pennora.example.com`
-4. **Authorized redirect URIs**: `https://pennora.example.com/api/auth/callback/google`
-5. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.docker` and restart.
-
-## 5. Email with Resend (optional)
-
-1. Create an account at [Resend](https://resend.com).
-2. Verify your sending domain.
-3. Set `RESEND_API_KEY` and `EMAIL_FROM` in `.env.docker`.
-4. Restart the server container.
-
-Without email configured, password reset and invite links are still created but must be copied manually from the UI.
-
-## 6. Database persistence and backups
-
-SQLite data is stored in the Docker volume `sqldata` (mounted at `/data` in the server container).
-
-### Backup
-
-```bash
-docker compose exec server cp /data/data.db /data/data.db.backup
-docker cp "$(docker compose ps -q server)":/data/data.db ./pennora-backup-$(date +%Y%m%d).db
-```
-
-### Restore
-
-Stop the stack, replace the database file in the volume, then start again.
-
-> **Tip:** Schedule nightly backups with cron and store copies off-server.
-
-## 7. Updates
-
-```bash
-cd pennora
-git pull
-docker compose --env-file .env.docker up --build -d
-```
-
-Migrations run automatically on server startup.
-
-## 8. Manual deployment (without Docker)
-
-For advanced setups where you run Bun and nginx directly:
+## 3. Deploy the frontend (Cloudflare Pages)
 
 ### Build
 
 ```bash
 bun install
-bun run build
+bun run --cwd apps/web build
 ```
 
-### Server
+Output directory: `apps/web/dist`
+
+### Create the Pages project (first time)
 
 ```bash
-export BETTER_AUTH_SECRET=...
-export BETTER_AUTH_URL=https://pennora.example.com
-export APP_URL=https://pennora.example.com
-export DB_PATH=/var/lib/pennora/data.db
-export PORT=3001
-
-bun run --cwd apps/server start
+npx wrangler pages project create pennora --production-branch main
 ```
 
-Use a process manager (systemd, PM2) to keep the server running.
+### Deploy
 
-### Web
+```bash
+npx wrangler pages deploy apps/web/dist --project-name pennora
+```
 
-Serve `apps/web/dist` with nginx. Use the provided [`apps/web/nginx.conf`](../apps/web/nginx.conf) as a starting point — update `proxy_pass` to point at your API host.
+### Custom domain
 
-Add your production origin to CORS in `apps/server/src/index.ts` if it is not already covered by `BETTER_AUTH_URL` / `APP_URL`.
+In **Workers & Pages** → **pennora** (Pages) → **Custom domains**, add:
 
-## 9. Health checks
+```
+pennora.app
+www.pennora.app   # optional
+```
 
-| Endpoint | Expected |
-|----------|----------|
-| `GET /api/config` | `200` JSON |
-| `GET /` (web) | `200` HTML |
+Cloudflare provisions TLS automatically.
 
-## 10. Troubleshooting
+### SPA routing
 
-| Symptom | Likely cause |
-|---------|--------------|
-| Auth redirects fail | `BETTER_AUTH_URL` does not match the browser URL (scheme, host, port) |
-| Google login error | Redirect URI mismatch in Google Console |
-| CORS errors | Production origin not in server CORS list |
-| Empty database after restart | Volume not mounted; check `docker volume ls` |
-| 502 on `/api` | Server container not running or nginx `proxy_pass` misconfigured |
+Pages must serve `index.html` for client-side routes. Add [`apps/web/public/_routes.json`](../apps/web/public/_routes.json) (included in the build output):
 
-## Security checklist
+```json
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": ["/api/*"]
+}
+```
 
-- [ ] Strong `BETTER_AUTH_SECRET` (32+ random bytes)
-- [ ] HTTPS everywhere in production
-- [ ] Do not expose port `3001` publicly unless required
-- [ ] Regular SQLite backups
-- [ ] Keep Docker images and dependencies updated
-- [ ] Restrict server SSH access
+The `exclude` rule ensures `/api/*` requests reach the Worker, not Pages.
+
+## 4. Google OAuth (production)
+
+1. Open [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Create a **Web application** OAuth client.
+3. Configure:
+
+| Field | Value |
+|-------|-------|
+| Authorized JavaScript origins | `https://pennora.app` |
+| Authorized redirect URIs | `https://pennora.app/api/auth/callback/google` |
+
+4. Store the client ID and secret as Worker secrets (step 2).
+5. Redeploy the Worker if you changed vars.
+
+## 5. Email with Resend (optional)
+
+1. Create an account at [Resend](https://resend.com).
+2. Verify your sending domain (e.g. `pennora.app`).
+3. Set `RESEND_API_KEY` as a Worker secret.
+4. Add to `wrangler.toml` `[vars]`:
+
+   ```toml
+   EMAIL_FROM = "Pennora <noreply@pennora.app>"
+   ```
+
+Without email, password reset and invite links still work — users copy the link from the UI.
+
+## 6. CI/CD with GitHub Actions (optional)
+
+Example workflow (`.github/workflows/deploy.yml`):
+
+```yaml
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+      - run: bun run --cwd apps/web build
+
+      - name: Deploy API Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy --config apps/server/wrangler.toml
+
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: d1 migrations apply pennora --remote --config apps/server/wrangler.toml
+
+      - name: Deploy Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: pages deploy apps/web/dist --project-name pennora
+```
+
+Create a [Cloudflare API token](https://dash.cloudflare.com/profile/api-tokens) with **Workers** and **Pages** edit permissions, and add it as `CLOUDFLARE_API_TOKEN` in GitHub repository secrets.
+
+## 7. Updates
+
+After pulling new code:
+
+```bash
+bun install
+
+# API + database
+npx wrangler d1 migrations apply pennora --remote --config apps/server/wrangler.toml
+npx wrangler deploy --config apps/server/wrangler.toml
+
+# Frontend
+bun run --cwd apps/web build
+npx wrangler pages deploy apps/web/dist --project-name pennora
+```
+
+Or let GitHub Actions deploy on push to `main`.
+
+## 8. Backups (D1)
+
+Export the remote database periodically:
+
+```bash
+npx wrangler d1 export pennora --remote --output pennora-backup-$(date +%Y%m%d).sql
+```
+
+Store exports off Cloudflare (S3, R2, local disk).
+
+To restore, use `wrangler d1 execute` with the SQL file or import via the dashboard.
+
+## 9. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `404` on `/api/config` | Worker route missing | Add `pennora.app/api/*` route to the Worker |
+| `404` on `/api/config` | Pages intercepting `/api` | Ensure `_routes.json` excludes `/api/*` |
+| Auth redirect loop | Wrong `BETTER_AUTH_URL` | Must be exactly `https://pennora.app` (no trailing slash) |
+| Google login fails | Redirect URI mismatch | Use `https://pennora.app/api/auth/callback/google` in Google Console |
+| CORS errors | Origin not trusted | Set `BETTER_AUTH_URL` and `APP_URL` to production URL |
+| Empty app after deploy | D1 migrations not applied | Run `wrangler d1 migrations apply … --remote` |
+| SPA routes 404 on refresh | Pages SPA fallback missing | Confirm `_routes.json` is in `apps/web/public/` |
+
+## 10. Security checklist
+
+- [ ] Strong `BETTER_AUTH_SECRET` (32+ random bytes via `wrangler secret`)
+- [ ] Secrets only in Wrangler — never in git or Pages env unless necessary
+- [ ] Worker route scoped to `/api/*` only
+- [ ] Cloudflare **SSL/TLS** mode: Full (strict)
+- [ ] Regular D1 exports
+- [ ] API token scoped to minimum required permissions
+
+## Local development vs production
+
+| | Local (`bun run dev`) | Cloudflare production |
+|--|----------------------|------------------------|
+| Frontend | Vite dev server `:5173` | Pages CDN |
+| API | Bun server `:3001` | Worker |
+| Database | SQLite file (`data.db`) | D1 |
+| Env file | `.env` | `wrangler.toml` + secrets |
+
+Docker Compose (`bun run start`) is available for local full-stack testing without Cloudflare — it is **not** the production deployment path.
