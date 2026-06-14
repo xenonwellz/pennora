@@ -1,0 +1,10 @@
+# Pennora Frontend — Cloudflare Pages
+# Deploy: npx wrangler pages deploy apps/web/dist --config wrangler.pages.toml
+
+name = "pennora"
+compatibility_date = "2025-01-01"
+
+# Route all requests to the SPA
+[routes]
+pattern = "/*"
+zone_name = "pennora.cv"

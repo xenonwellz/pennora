@@ -1,28 +1,31 @@
 # Pennora API — Cloudflare Worker
-# Deploy: npx wrangler deploy --config apps/server/wrangler.toml
+# Deploy: npx wrangler deploy --config wrangler.worker.toml
 
 name = "pennora-api"
-main = "src/worker.ts"
+main = "apps/server/src/worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Create with: npx wrangler d1 create pennora
 [[d1_databases]]
 binding = "DB"
 database_name = "pennora"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
-migrations_dir = "src/db/migrations"
+migrations_dir = "apps/server/src/db/migrations"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "pennora"
 
 # Public URLs — must match your custom domain
 [vars]
-BETTER_AUTH_URL = "https://pennora.app"
-APP_URL = "https://pennora.app"
-EMAIL_FROM = "Pennora <noreply@pennora.app>"
+BETTER_AUTH_URL = "https://pennora.cv"
+APP_URL = "https://pennora.cv"
+EMAIL_FROM = "Pennora <noreply@pennora.cv>"
 
 # Uncomment after the domain is on Cloudflare:
 # [[routes]]
-# pattern = "pennora.app/api/*"
-# zone_name = "pennora.app"
+# pattern = "pennora.cv/api/*"
+# zone_name = "pennora.cv"
 
 [observability]
 enabled = true
