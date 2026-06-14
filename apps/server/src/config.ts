@@ -1,16 +1,16 @@
-function id() {
-    return crypto.randomUUID();
-}
-
 export const env = {
-    BETTER_AUTH_SECRET: Bun.env.BETTER_AUTH_SECRET ?? "dev-secret-replace-in-production-32chars!!",
-    BETTER_AUTH_URL: Bun.env.BETTER_AUTH_URL ?? "http://localhost:5173",
-    APP_URL: Bun.env.APP_URL ?? Bun.env.BETTER_AUTH_URL ?? "http://localhost:5173",
-    GOOGLE_CLIENT_ID: Bun.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: Bun.env.GOOGLE_CLIENT_SECRET,
-    RESEND_API_KEY: Bun.env.RESEND_API_KEY,
-    EMAIL_FROM: Bun.env.EMAIL_FROM ?? "Peak Finance <onboarding@resend.dev>",
+    BETTER_AUTH_SECRET: "",
+    BETTER_AUTH_URL: "",
+    APP_URL: "",
+    GOOGLE_CLIENT_ID: undefined as string | undefined,
+    GOOGLE_CLIENT_SECRET: undefined as string | undefined,
+    RESEND_API_KEY: undefined as string | undefined,
+    EMAIL_FROM: "",
 };
+
+export function setConfig(overrides: Partial<typeof env>) {
+    Object.assign(env, overrides);
+}
 
 export function isGoogleEnabled() {
     return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
