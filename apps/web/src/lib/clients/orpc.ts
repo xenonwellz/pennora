@@ -3,8 +3,10 @@ import type { AppRouter } from "@expense/server/orpc/router";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL ?? window.location.origin;
+
 const link = new RPCLink({
-    url: `${window.location.origin}/api/rpc`,
+    url: `${backendUrl}/api/rpc`,
     fetch: (request, init) => fetch(request, { ...init, credentials: "include" }),
 });
 

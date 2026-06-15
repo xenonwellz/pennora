@@ -19,6 +19,7 @@ export interface Env {
     BETTER_AUTH_SECRET: string;
     BETTER_AUTH_URL: string;
     APP_URL: string;
+    CORS_ORIGINS?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
     RESEND_API_KEY?: string;
@@ -31,6 +32,7 @@ export default {
             BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
             BETTER_AUTH_URL: env.BETTER_AUTH_URL,
             APP_URL: env.APP_URL,
+            CORS_ORIGINS: env.CORS_ORIGINS,
             GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
             GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
             RESEND_API_KEY: env.RESEND_API_KEY,

@@ -1,10 +1,9 @@
 import { createAuthClient } from "better-auth/react";
 
-const baseURL =
-    typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
+const backendUrl = import.meta.env.VITE_BACKEND_URL ?? window.location.origin;
 
 export const authClient = createAuthClient({
-    baseURL,
+    baseURL: backendUrl,
 });
 
 export const { signIn, signUp, signOut, useSession } = authClient;

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { tags } from "../db/schema/domain";
 
@@ -16,11 +16,11 @@ export class TagsRepo {
     }
 
     create(data: { budgetId: string; name: string }) {
-        return db.insert(tags).values({ ...val(), ...data }).returning().then((r) => r[0]);
+        return db.insert(tags).values({ ...val(), ...data }).returning().then((r: typeof tags.$inferSelect[]) => r[0]);
     }
 
     update(id: string, data: { name: string }) {
-        return db.update(tags).set({ ...data, updatedAt: new Date() }).where(eq(tags.id, id)).returning().then((r) => r[0]);
+        return db.update(tags).set({ ...data, updatedAt: new Date() }).where(eq(tags.id, id)).returning().then((r: typeof tags.$inferSelect[]) => r[0]);
     }
 
     delete(id: string) {

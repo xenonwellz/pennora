@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { budgetMembers } from "../db/schema/domain";
 
@@ -13,7 +13,7 @@ export class BudgetMembersRepo {
 
     findByToken(token: string) {
         return db.query.budgetMembers.findFirst({
-            where: (m, { eq }) => eq(m.token, token),
+            where: (m: any, { eq: op }: any) => op(m.token, token),
             with: { budget: true },
         });
     }
@@ -34,21 +34,21 @@ export class BudgetMembersRepo {
 
     hasAccess(userId: string, budgetId: string) {
         return db.query.budgetMembers.findFirst({
-            where: (m, { eq, and }) =>
-                and(eq(m.budgetId, budgetId), eq(m.userId, userId), eq(m.status, "accepted")),
+            where: (m: any, { eq: op, and: opAnd }: any) =>
+                opAnd(op(m.budgetId, budgetId), op(m.userId, userId), op(m.status, "accepted")),
         });
     }
 
     findById(budgetId: string, memberId: string) {
         return db.query.budgetMembers.findFirst({
-            where: (m, { eq, and }) => and(eq(m.id, memberId), eq(m.budgetId, budgetId)),
+            where: (m: any, { eq: op, and: opAnd }: any) => opAnd(op(m.id, memberId), op(m.budgetId, budgetId)),
         });
     }
 
     findByBudgetAndEmail(budgetId: string, email: string) {
         return db.query.budgetMembers.findFirst({
-            where: (m, { eq, and }) =>
-                and(eq(m.budgetId, budgetId), eq(m.email, email.toLowerCase())),
+            where: (m: any, { eq: op, and: opAnd }: any) =>
+                opAnd(op(m.budgetId, budgetId), op(m.email, email.toLowerCase())),
         });
     }
 
@@ -72,7 +72,7 @@ export class BudgetMembersRepo {
                 status: "pending",
             })
             .returning()
-            .then((rows) => rows[0]);
+            .then((rows: typeof budgetMembers.$inferSelect[]) => rows[0]);
     }
 
     accept(id: string, userId: string) {
@@ -81,7 +81,7 @@ export class BudgetMembersRepo {
             .set({ userId, status: "accepted", updatedAt: new Date() })
             .where(eq(budgetMembers.id, id))
             .returning()
-            .then((rows) => rows[0]);
+            .then((rows: typeof budgetMembers.$inferSelect[]) => rows[0]);
     }
 
     acceptPendingForEmail(email: string, userId: string) {

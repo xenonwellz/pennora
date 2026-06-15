@@ -5,7 +5,7 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
 
-const apiTarget = process.env.VITE_API_URL ?? "http://localhost:3001";
+const apiTarget = process.env.VITE_BACKEND_URL ?? "http://localhost:3001";
 
 export default defineConfig({
     plugins: [

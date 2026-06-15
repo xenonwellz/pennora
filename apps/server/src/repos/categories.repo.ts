@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, type SQL } from "drizzle-orm";
 import { db } from "../db";
 import { categories } from "../db/schema/domain";
 
@@ -12,11 +12,11 @@ export class CategoriesRepo {
     }
 
     create(data: { budgetId: string; name: string }) {
-        return db.insert(categories).values({ id: id(), ...data }).returning().then((r) => r[0]);
+        return db.insert(categories).values({ id: id(), ...data }).returning().then((r: typeof categories.$inferSelect[]) => r[0]);
     }
 
     update(id: string, data: { name: string }) {
-        return db.update(categories).set(data).where(eq(categories.id, id)).returning().then((r) => r[0]);
+        return db.update(categories).set(data).where(eq(categories.id, id)).returning().then((r: typeof categories.$inferSelect[]) => r[0]);
     }
 
     delete(id: string) {

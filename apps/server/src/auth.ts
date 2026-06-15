@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
 
-import { env, isEmailEnabled, isGoogleEnabled } from "./config";
+import { env, isEmailEnabled, isGoogleEnabled, getAllowedOrigins } from "./config";
 import { db } from "./db";
 import { user } from "./db/schema/auth";
 import { sendEmail } from "./services/email.service";
@@ -12,11 +12,11 @@ const invitationService = new InvitationService();
 
 const googleConfig = isGoogleEnabled()
     ? {
-          google: {
-              clientId: env.GOOGLE_CLIENT_ID!,
-              clientSecret: env.GOOGLE_CLIENT_SECRET!,
-          },
-      }
+        google: {
+            clientId: env.GOOGLE_CLIENT_ID!,
+            clientSecret: env.GOOGLE_CLIENT_SECRET!,
+        },
+    }
     : {};
 
 export const auth = betterAuth({
@@ -29,29 +29,22 @@ export const auth = betterAuth({
         enabled: true,
         ...(isEmailEnabled()
             ? {
-                  sendResetPassword: async ({ user: resetUser, url }) => {
-                      await sendEmail({
-                          to: resetUser.email,
-                          subject: "Reset your Peak Finance password",
-                          html: `
+                sendResetPassword: async ({ user: resetUser, url }) => {
+                    await sendEmail({
+                        to: resetUser.email,
+                        subject: "Reset your Peak Finance password",
+                        html: `
                               <p>We received a request to reset your Peak Finance password.</p>
                               <p><a href="${url}">Reset password</a></p>
                               <p>If you didn't request this, you can ignore this email.</p>
                           `,
-                      });
-                  },
-              }
+                    });
+                },
+            }
             : {}),
     },
     socialProviders: googleConfig,
-    trustedOrigins: [
-        "http://localhost:5173",
-        "http://localhost:80",
-        "http://localhost:8080",
-        "http://localhost:3001",
-        env.BETTER_AUTH_URL,
-        env.APP_URL,
-    ].filter((origin, index, list) => Boolean(origin) && list.indexOf(origin) === index),
+    trustedOrigins: getAllowedOrigins(),
     user: {
         additionalFields: {
             activeBudgetId: {

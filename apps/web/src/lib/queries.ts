@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { orpc } from "./client";
+import { orpc } from "./clients/orpc";
 import { fetchPublicConfig } from "./config";
 
 export function useAuthConfig() {

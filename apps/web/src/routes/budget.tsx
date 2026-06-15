@@ -2,7 +2,7 @@ import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router"
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import type { BudgetMonthStatus } from "@expense/shared";
-import { orpc } from "../lib/client";
+import { orpc } from "../lib/clients/orpc";
 import {
     useBudgetItems,
     useIncomeTarget,

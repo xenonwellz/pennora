@@ -25,14 +25,9 @@ bucket_name = "pennora"
 
 # Public URLs — must match your custom domain
 [vars]
-BETTER_AUTH_URL = "https://pennora.cv"
-APP_URL = "https://pennora.cv"
+BETTER_AUTH_URL = "https://pennora-web.pages.dev"
+APP_URL = "https://pennora-web.pages.dev"
 EMAIL_FROM = "Pennora <noreply@pennora.cv>"
-
-# Uncomment after the domain is on Cloudflare:
-# [[routes]]
-# pattern = "pennora.cv/api/*"
-# zone_name = "pennora.cv"
 
 [observability]
 enabled = true

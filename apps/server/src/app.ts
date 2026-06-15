@@ -4,19 +4,12 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ORPCError } from "@orpc/server";
 
 import { auth } from "./auth";
-import { env, publicConfig } from "./config";
+import { env, publicConfig, getAllowedOrigins } from "./config";
 import { router } from "./orpc/router";
 
 const app = new Hono();
 
-const corsOrigins = [
-    "http://localhost:5173",
-    "http://localhost:80",
-    "http://localhost:8080",
-    "http://localhost:3001",
-    env.BETTER_AUTH_URL,
-    env.APP_URL,
-].filter((origin, index, list) => Boolean(origin) && list.indexOf(origin) === index);
+const corsOrigins = getAllowedOrigins();
 
 app.use(
     "/*",

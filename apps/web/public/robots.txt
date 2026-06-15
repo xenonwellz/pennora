@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://pennora.cv/sitemap.xml
+Sitemap: https://pennora-web.pages.dev/sitemap.xml

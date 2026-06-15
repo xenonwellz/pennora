@@ -131,7 +131,7 @@ export function AppSidebar() {
                         align="start"
                         side="top"
                         sideOffset={8}
-                        className="z-[100] w-56 rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+                        className="z-100 w-56 rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
                     >
                         <Button
                             variant="ghost"

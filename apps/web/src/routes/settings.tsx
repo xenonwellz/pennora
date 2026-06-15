@@ -115,7 +115,7 @@ function CategoriesSection() {
                 {isLoading && <div className="h-20 rounded-xl bg-muted/40 animate-pulse" />}
 
                 <div className="space-y-1">
-                    {categories?.map((c) => (
+                    {categories?.map((c: { id: string; name: string }) => (
                         <div
                             key={c.id}
                             className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 group"
@@ -182,7 +182,7 @@ function TagsSection() {
                 {isLoading && <div className="h-20 rounded-xl bg-muted/40 animate-pulse" />}
 
                 <div className="space-y-1">
-                    {tags?.map((t) => (
+                    {tags?.map((t: { id: string; name: string }) => (
                         <div
                             key={t.id}
                             className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 group"
@@ -280,7 +280,7 @@ function MembersSection() {
                 {isLoading && <div className="h-20 rounded-xl bg-muted/40 animate-pulse" />}
 
                 <div className="space-y-1">
-                    {members?.map((member) => (
+                    {members?.map((member: { id: string; email: string; status: string }) => (
                         <div
                             key={member.id}
                             className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 group"

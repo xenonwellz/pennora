@@ -1,26 +1,29 @@
 {
-  "name": "expense-tracking",
-  "private": true,
-  "packageManager": "bun@1.3.5",
-  "workspaces": ["apps/*", "packages/*"],
-  "scripts": {
-    "dev": "turbo dev",
-    "start": "docker compose --env-file .env.docker up --build",
-    "start:detach": "docker compose --env-file .env.docker up --build -d",
-    "stop": "docker compose down",
-    "build": "turbo build",
-    "build:docker": "docker compose build",
-    "db:generate": "bun run --cwd apps/server drizzle-kit generate",
-    "db:push": "bun run --cwd apps/server drizzle-kit push",
-    "format": "bun x @biomejs/biome@latest format --write .",
-    "format:check": "bun x @biomejs/biome@latest format .",
-    "typecheck": "turbo typecheck",
-    "deploy:api": "wrangler deploy --cwd apps/server",
-    "deploy:web": "wrangler pages deploy dist --project-name pennora --cwd apps/web",
-    "deploy:db": "wrangler d1 migrations apply pennora --remote --cwd apps/server"
-  },
-  "devDependencies": {
-    "turbo": "^2.4.0",
-    "typescript": "^5.7.0"
-  }
+    "name": "expense-tracking",
+    "private": true,
+    "packageManager": "bun@1.3.5",
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "turbo dev",
+        "start": "docker compose --env-file .env.docker up --build",
+        "start:detach": "docker compose --env-file .env.docker up --build -d",
+        "stop": "docker compose down",
+        "build": "turbo build",
+        "build:docker": "docker compose build",
+        "db:generate": "bun run --cwd apps/server drizzle-kit generate",
+        "db:push": "bun run --cwd apps/server drizzle-kit push",
+        "format": "bun x @biomejs/biome@latest format --write .",
+        "format:check": "bun x @biomejs/biome@latest format .",
+        "typecheck": "turbo typecheck",
+        "deploy:api": "wrangler deploy --cwd apps/server",
+        "deploy:web": "wrangler pages deploy dist --cwd apps/web",
+        "deploy:db": "wrangler d1 migrations apply pennora --remote --cwd apps/server"
+    },
+    "devDependencies": {
+        "turbo": "^2.4.0",
+        "typescript": "^5.7.0"
+    }
 }
