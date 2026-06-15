@@ -1,5 +1,12 @@
 # Pennora API — Cloudflare Worker
-# Deploy: npx wrangler deploy
+#
+# Prerequisites:
+#   1. npx wrangler login
+#   2. npx wrangler d1 create pennora      (first time only)
+#   3. Copy the database ID from step 2 and paste it below as database_id
+#
+# Deploy:
+#   npx wrangler deploy
 
 name = "pennora"
 main = "src/worker.ts"

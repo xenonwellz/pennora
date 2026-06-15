@@ -37,8 +37,7 @@ Pennora is a self-hostable monthly budget planner built for people who manage fi
 │   └── shared/       # Shared types and utilities
 ├── docker-compose.yml
 ├── .env.example      # Local development environment template
-└── docs/
-    └── DEPLOYMENT.md # Production deployment guide
+└── README.md
 ```
 
 ## Prerequisites
@@ -122,20 +121,41 @@ bun run stop
 
 ## Production deployment (Cloudflare)
 
-Pennora is deployed live on **Cloudflare** — Pages for the frontend, Workers for the API, and D1 for the database.
-
-See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full guide (D1 setup, Worker secrets, Pages deploy, custom domain, CI/CD).
-
-Quick reference:
+### Prerequisites
 
 ```bash
-# API Worker
-npx wrangler deploy --config apps/server/wrangler.toml
+# Install wrangler
+npm install -g wrangler
 
-# Frontend
-bun run --cwd apps/web build
-npx wrangler pages deploy apps/web/dist --project-name pennora
+# Login to Cloudflare
+npx wrangler login
 ```
+
+### 1. Create the database (first time only)
+
+```bash
+cd apps/server
+npx wrangler d1 create pennora
+```
+
+Copy the returned database ID and paste it into `apps/server/wrangler.toml` as `database_id`.
+
+### 2. Deploy the API Worker
+
+```bash
+cd apps/server
+npx wrangler deploy
+```
+
+### 3. Deploy the frontend
+
+```bash
+cd apps/web
+bun run build
+npx wrangler pages deploy
+```
+
+That's it. The API is served from your Worker URL and the frontend from your Pages URL.
 
 ## Scripts
 
