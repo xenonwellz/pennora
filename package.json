@@ -8,6 +8,8 @@
     ],
     "scripts": {
         "dev": "turbo dev",
+        "start:backend": "bun run --cwd apps/server dev",
+        "start:web": "bun run --cwd apps/web preview",
         "start": "docker compose --env-file .env.docker up --build",
         "start:detach": "docker compose --env-file .env.docker up --build -d",
         "stop": "docker compose down",
