@@ -27,6 +27,7 @@ bucket_name = "pennora"
 [vars]
 BETTER_AUTH_URL = "https://pennora-web.pages.dev"
 APP_URL = "https://pennora-web.pages.dev"
+CORS_ORIGINS = "*"
 EMAIL_FROM = "Pennora <noreply@pennora.cv>"
 
 [observability]

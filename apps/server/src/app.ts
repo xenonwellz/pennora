@@ -9,7 +9,7 @@ import { router } from "./orpc/router";
 
 const app = new Hono();
 
-const corsOrigins = getAllowedOrigins();
+const corsOrigins: string | string[] = getAllowedOrigins();
 
 app.use(
     "/*",

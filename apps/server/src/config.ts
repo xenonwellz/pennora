@@ -14,9 +14,13 @@ export const env = {
  * If CORS_ORIGINS is set (comma-separated), it takes precedence.
  * Otherwise falls back to sensible dev defaults.
  */
-export function getAllowedOrigins(): string[] {
+export function getAllowedOrigins(): string | string[] {
     if (env.CORS_ORIGINS) {
-        return env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean);
+        const origins = env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean);
+        if (origins.includes("*")) {
+            return "*";
+        }
+        return origins;
     }
     return [
         "http://localhost:5173",
