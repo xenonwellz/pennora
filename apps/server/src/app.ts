@@ -1,23 +1,12 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ORPCError } from "@orpc/server";
 
 import { auth } from "./auth";
-import { env, publicConfig, getAllowedOrigins } from "./config";
+import { env, publicConfig } from "./config";
 import { router } from "./orpc/router";
 
 const app = new Hono();
-
-const corsOrigins: string | string[] = getAllowedOrigins();
-
-app.use(
-    "/*",
-    cors({
-        origin: corsOrigins,
-        credentials: true,
-    }),
-);
 
 app.get("/api/config", (c) => c.json(publicConfig()));
 
