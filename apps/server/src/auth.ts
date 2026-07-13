@@ -2,11 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
 
-import { env, isEmailEnabled, isGoogleEnabled, getAllowedOrigins } from "./config";
-
-const corsOrigins = getAllowedOrigins();
-// betterAuth trustedOrigins expects string[], not "*"
-const trustedOrigins: string[] = Array.isArray(corsOrigins) ? corsOrigins : [];
+import { env, isEmailEnabled, isGoogleEnabled } from "./config";
 import { db } from "./db";
 import { user } from "./db/schema/auth";
 import { sendEmail } from "./services/email.service";
@@ -27,7 +23,7 @@ export const auth = betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     database: drizzleAdapter(db, {
-        provider: "sqlite",
+        provider: "pg",
     }),
     emailAndPassword: {
         enabled: true,
@@ -48,7 +44,7 @@ export const auth = betterAuth({
             : {}),
     },
     socialProviders: googleConfig,
-    trustedOrigins: trustedOrigins,
+    trustedOrigins: env.CORS_ORIGINS,
     user: {
         additionalFields: {
             activeBudgetId: {

@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports: ["19832:5432"]
+    environment:
+      POSTGRES_USER: expense
+      POSTGRES_PASSWORD: expense
+      POSTGRES_DB: expense
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expense"]
+      interval: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    expose: ["3001"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://expense:expense@postgres:5432/expense
+      PORT: "3001"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    ports: ["8080:80"]
+    depends_on: [api]
+
+volumes:
+  pgdata:

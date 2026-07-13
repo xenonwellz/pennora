@@ -3,11 +3,11 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { apiProxy, rootEnvDir } from "../../tooling/dashboard-vite";
 import path from "node:path";
 
-const apiTarget = process.env.VITE_BACKEND_URL ?? "http://localhost:3001";
-
 export default defineConfig({
+    envDir: rootEnvDir,
     plugins: [
         TanStackRouterVite({ autoCodeSplitting: true }),
         react(),
@@ -49,9 +49,7 @@ export default defineConfig({
         alias: { "@": path.resolve(__dirname, "src") },
     },
     server: {
-        port: 5173,
-        proxy: {
-            "/api": apiTarget,
-        },
+        port: 19802,
+        proxy: apiProxy,
     },
 });
