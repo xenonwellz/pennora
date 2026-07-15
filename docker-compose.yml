@@ -1,16 +1,20 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    ports: ["19832:5432"]
-    environment:
-      POSTGRES_USER: expense
-      POSTGRES_PASSWORD: expense
-      POSTGRES_DB: expense
-    volumes: [pgdata:/var/lib/postgresql/data]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U expense"]
-      interval: 5s
-      retries: 5
+    postgres:
+        image: postgres:17-alpine
+        profiles: ["deps"]
+        environment:
+            POSTGRES_USER: expense
+            POSTGRES_PASSWORD: expense
+            POSTGRES_DB: expense
+        ports:
+            - "19832:5432"
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U expense"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
 
 volumes:
-  pgdata:
+    pgdata:

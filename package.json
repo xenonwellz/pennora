@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "docker compose up -d && turbo dev",
+    "dev": "docker compose --profile deps up -d && turbo dev",
     "dev:api": "turbo dev --filter=@expense/server",
     "dev:web": "turbo dev --filter=@expense/web",
     "build": "turbo build",

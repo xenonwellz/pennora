@@ -1,0 +1,51 @@
+services:
+    # ── Infrastructure ────────────────────────────────────────────
+
+    postgres:
+        image: postgres:17-alpine
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-expense}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-expense}
+            POSTGRES_DB: ${POSTGRES_DB:-expense}
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-expense}"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
+
+    # ── Application ───────────────────────────────────────────────
+
+    api:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.api
+        restart: unless-stopped
+        depends_on:
+            postgres:
+                condition: service_healthy
+        environment:
+            NODE_ENV: ${NODE_ENV:-production}
+            DATABASE_URL: postgres://${POSTGRES_USER:-expense}:${POSTGRES_PASSWORD:-expense}@postgres:5432/${POSTGRES_DB:-expense}
+            BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+            BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+            APP_URL: ${APP_URL}
+            CORS_ORIGINS: ${CORS_ORIGINS}
+            GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+            GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+            RESEND_API_KEY: ${RESEND_API_KEY}
+            EMAIL_FROM: ${EMAIL_FROM}
+            PORT: "3001"
+
+    web:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.web
+        restart: unless-stopped
+        depends_on:
+            - api
+
+volumes:
+    pgdata:
