@@ -1,6 +1,14 @@
 #!/bin/sh
 set -e
 
+if [ -z "$BETTER_AUTH_SECRET" ]; then
+  echo "[entrypoint] ERROR: BETTER_AUTH_SECRET is required."
+  echo "[entrypoint] Set it in your .env (or environment), e.g.:"
+  echo "  openssl rand -base64 32"
+  echo "  # then: BETTER_AUTH_SECRET=<output>"
+  exit 1
+fi
+
 if [ -n "$DATABASE_URL" ]; then
   echo "[entrypoint] Waiting for database..."
   host=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:/]*\).*|\1|p')
@@ -13,6 +21,9 @@ if [ -n "$DATABASE_URL" ]; then
 fi
 
 echo "[entrypoint] Running migrations..."
-cd /app && bun run drizzle-kit migrate 2>&1 || echo "[entrypoint] Migrations skipped or failed"
+if ! bun run /app/dist/migrate.js; then
+  echo "[entrypoint] ERROR: migrations failed"
+  exit 1
+fi
 
 exec "$@"

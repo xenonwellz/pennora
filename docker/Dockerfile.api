@@ -10,14 +10,18 @@ RUN bun install
 
 COPY . .
 
-RUN bun build apps/server/src/index.ts --outdir dist --target bun
+RUN bun build apps/server/src/index.ts --outdir dist --target bun \
+ && bun build apps/server/src/migrate.ts --outfile dist/migrate.js --target bun
 
 FROM oven/bun:1.3 AS runner
 WORKDIR /app
+
+# Runtime JS bundles
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/env ./packages/env
+
+# SQL migrations (read by migrator at runtime; not bundled into JS)
 COPY apps/server/src/db/migrations ./src/db/migrations
+
 COPY docker/entrypoint-api.sh ./entrypoint-api.sh
 RUN chmod +x ./entrypoint-api.sh
 

@@ -18,6 +18,8 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "format": "turbo format",
+    "start": "docker compose -f docker-compose.prod.yml up --build -d",
+    "stop": "docker compose -f docker-compose.prod.yml down",
     "deploy:api": "wrangler deploy --cwd apps/server",
     "deploy:web": "wrangler pages deploy dist --cwd apps/web",
     "deploy:db": "wrangler d1 migrations apply pennora --remote --cwd apps/server"

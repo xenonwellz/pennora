@@ -102,16 +102,21 @@ See [`.env.example`](.env.example) for all variables.
 Docker Compose is useful for running the full stack locally without Cloudflare. It is **not** the production deployment path — see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Cloudflare.
 
 ```bash
-cp .env.example .env.docker
-# Edit .env.docker — set BETTER_AUTH_SECRET and BETTER_AUTH_URL=http://localhost:8080
+cp .env.example .env
+# Required: set a strong BETTER_AUTH_SECRET
+# openssl rand -base64 32
+#
+# For Docker, point auth/app URLs at the published web port:
+# BETTER_AUTH_URL=http://localhost:8080
+# APP_URL=http://localhost:8080
+# CORS_ORIGINS=http://localhost:8080
 
-bun run start
+bun run start   # docker compose -f docker-compose.prod.yml up --build -d
 ```
 
 | Service | URL |
 |---------|-----|
-| Web app | http://localhost:8080 |
-| API (direct) | http://localhost:3001 |
+| Web app (nginx → API) | http://localhost:8080 |
 
 Stop containers:
 
@@ -119,6 +124,8 @@ Stop containers:
 bun run stop
 ```
 
+If the API container exits with `BETTER_AUTH_SECRET: Required`, your `.env` is missing that variable.
+If you see migration errors, rebuild the API image (`bun run start` rebuilds with `--build`).
 ## Production deployment (Cloudflare)
 
 ### Prerequisites
