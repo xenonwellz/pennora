@@ -43,6 +43,27 @@ function DialogOverlay({
   )
 }
 
+/** Outer shell: always keeps the modal off the viewport edge */
+function DialogViewport({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      data-slot="dialog-viewport"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none"
+      style={{
+        paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
+        paddingBottom: "max(1rem, env(safe-area-inset-bottom, 0px))",
+        paddingLeft: "max(1rem, env(safe-area-inset-left, 0px))",
+        paddingRight: "max(1rem, env(safe-area-inset-right, 0px))",
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+const dialogSurface =
+  "pointer-events-auto relative z-50 grid w-full max-h-[min(90dvh,calc(100dvh-2rem))] max-w-md gap-0 overflow-hidden rounded-xl bg-popover text-sm text-popover-foreground shadow-lg outline-none ring-1 ring-border duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 dark:ring-border"
+
 function DialogContent({
   className,
   children,
@@ -54,32 +75,34 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        className={cn(
-          // Width is viewport − side gutter so max-w-* overrides never go edge-to-edge on mobile
-          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-h-[min(90dvh,calc(100dvh-2rem))] max-w-md -translate-x-1/2 -translate-y-1/2 gap-6 overflow-y-auto rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/5 duration-100 outline-none dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-4 right-4 bg-secondary"
-                size="icon-sm"
-              />
-            }
-          >
-            <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
+      <DialogViewport>
+        <DialogPrimitive.Popup
+          data-slot="dialog-content"
+          className={cn(
+            dialogSurface,
+            "gap-6 overflow-y-auto p-6 ring-foreground/5 dark:ring-foreground/10",
+            className
+          )}
+          {...props}
+        >
+          {children}
+          {showCloseButton && (
+            <DialogPrimitive.Close
+              data-slot="dialog-close"
+              render={
+                <Button
+                  variant="ghost"
+                  className="absolute top-4 right-4 bg-secondary"
+                  size="icon-sm"
+                />
+              }
+            >
+              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Popup>
+      </DialogViewport>
     </DialogPortal>
   )
 }
@@ -161,32 +184,30 @@ function DialogPanelContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-panel-content"
-        className={cn(
-          // Always leave ~1rem gutter each side on small screens; max-w-* only caps desktop size
-          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-h-[min(90dvh,calc(100dvh-2rem))] max-w-md -translate-x-1/2 -translate-y-1/2 gap-0 overflow-hidden rounded-xl bg-popover text-sm text-popover-foreground ring-1 ring-border duration-100 outline-none dark:ring-border data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-3 right-3 z-10 bg-secondary"
-                size="icon-sm"
-              />
-            }
-          >
-            <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
+      <DialogViewport>
+        <DialogPrimitive.Popup
+          data-slot="dialog-panel-content"
+          className={cn(dialogSurface, className)}
+          {...props}
+        >
+          {children}
+          {showCloseButton && (
+            <DialogPrimitive.Close
+              data-slot="dialog-close"
+              render={
+                <Button
+                  variant="ghost"
+                  className="absolute top-3 right-3 z-10 bg-secondary"
+                  size="icon-sm"
+                />
+              }
+            >
+              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Popup>
+      </DialogViewport>
     </DialogPortal>
   )
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Logo } from "@/components/logo";
+import { cn } from "@/lib/utils";
 
 type AuthLayoutProps = {
     title: string;
@@ -20,6 +21,19 @@ function GradientPanel() {
     );
 }
 
+/** Safe padding that never collapses to 0 when inset env() is 0 */
+const padForm =
+    "[padding-top:max(2.5rem,env(safe-area-inset-top,0px))] " +
+    "[padding-bottom:max(2.5rem,env(safe-area-inset-bottom,0px))] " +
+    "[padding-left:max(1.5rem,env(safe-area-inset-left,0px))] " +
+    "[padding-right:max(1.5rem,env(safe-area-inset-right,0px))]";
+
+const padBrand =
+    "[padding-top:max(2.5rem,env(safe-area-inset-top,0px))] " +
+    "[padding-bottom:max(2.5rem,env(safe-area-inset-bottom,0px))] " +
+    "[padding-left:max(2.5rem,env(safe-area-inset-left,0px))] " +
+    "[padding-right:max(2.5rem,env(safe-area-inset-right,0px))]";
+
 export function AuthLayout({
     title,
     subtitle,
@@ -27,19 +41,13 @@ export function AuthLayout({
     footer,
     variant = "split",
 }: AuthLayoutProps) {
-    // Don’t use .safe-inset here — it sets padding: env(...) and wipes Tailwind px-* to 0
-    // when safe-area insets are 0 (most mobile browsers).
-    const authPagePad =
-        "px-6 py-10 sm:px-8 " +
-        "[padding-top:max(2.5rem,env(safe-area-inset-top,0px))] " +
-        "[padding-bottom:max(2.5rem,env(safe-area-inset-bottom,0px))] " +
-        "[padding-left:max(1.5rem,env(safe-area-inset-left,0px))] " +
-        "[padding-right:max(1.5rem,env(safe-area-inset-right,0px))]";
-
     if (variant === "centered") {
         return (
             <div
-                className={`relative flex min-h-screen items-center justify-center bg-sidebar ${authPagePad}`}
+                className={cn(
+                    "relative flex min-h-screen items-center justify-center bg-sidebar",
+                    padForm,
+                )}
             >
                 <GradientPanel />
                 <div className="relative z-10 w-full max-w-md">
@@ -67,7 +75,13 @@ export function AuthLayout({
 
     return (
         <div className="grid min-h-screen lg:grid-cols-2">
-            <aside className="relative hidden overflow-hidden bg-sidebar lg:flex lg:flex-col lg:justify-between px-10 py-10 safe-pt safe-pb safe-pl">
+            {/* Branding column — never use .safe-pl/.safe-pt (they wipe px/py to 0) */}
+            <aside
+                className={cn(
+                    "relative hidden min-h-screen overflow-hidden bg-sidebar lg:flex lg:flex-col lg:justify-between",
+                    padBrand,
+                )}
+            >
                 <GradientPanel />
                 <div className="relative z-10">
                     <div className="mb-12 flex items-center gap-3">
@@ -79,10 +93,10 @@ export function AuthLayout({
                             <p className="text-xs text-white/60">Expense tracking</p>
                         </div>
                     </div>
-                    <h2 className="font-heading text-3xl font-semibold text-white leading-tight">
+                    <h2 className="font-heading text-3xl font-semibold leading-tight text-white">
                         Clarity for every naira.
                     </h2>
-                    <p className="mt-4 text-sm leading-relaxed text-white/70 max-w-sm">
+                    <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/70">
                         Plan monthly budgets, track spending, and collaborate with your household or team.
                     </p>
                 </div>
@@ -92,7 +106,10 @@ export function AuthLayout({
             </aside>
 
             <div
-                className={`flex min-h-screen items-center justify-center bg-background ${authPagePad}`}
+                className={cn(
+                    "flex min-h-screen items-center justify-center bg-background",
+                    padForm,
+                )}
             >
                 <div className="w-full max-w-md">
                     <div className="mb-8 text-center lg:hidden">
