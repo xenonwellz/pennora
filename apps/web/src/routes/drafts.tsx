@@ -1,5 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQueries } from "@tanstack/react-query";
+import { toNgn, type Currency } from "@expense/shared";
+import { orpc } from "../lib/clients/orpc";
 import {
     useExpenseDrafts,
     useIncomeDrafts,
@@ -13,8 +16,10 @@ import {
     useUpdateIncomeTarget,
     useCategories,
     useMonthStatus,
+    useLatestRate,
     type DraftExpense,
     type DraftIncome,
+    type IncomeTargetSummary,
 } from "../lib/queries";
 import { DivideFrame, DivideSectionLabel } from "@/components/divide-frame";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -37,6 +42,7 @@ import {
 import { MonthPicker } from "@/components/month-picker";
 import {
     formatCurrency,
+    formatNGNFull,
     monthLabel,
     currMonth,
     computeRecurringEndOptions,
@@ -49,6 +55,7 @@ import {
     AddCircleIcon,
     MoneyAdd01Icon,
     Edit02Icon,
+    Tick02Icon,
 } from "@hugeicons/core-free-icons";
 
 export const Route = createFileRoute("/drafts")({
@@ -96,10 +103,53 @@ function endMonthSelectItems(endOptions: string[]) {
     ];
 }
 
+function amountToNgn(amount: number, currency: string, usdBuyRate: number): number {
+    return toNgn(amount, currency as Currency, { usdBuyRate });
+}
+
+/** Unchecked net for a month: open income − unpaid expenses (active items only). */
+function computeUncheckedNet(
+    items: { amount: number; currency: string; paid: boolean; isDraft?: boolean }[] | undefined,
+    incomes: IncomeTargetSummary[] | undefined,
+    usdBuyRate: number,
+): number {
+    const active = (items ?? []).filter((i) => !i.isDraft);
+    const totalExpenses = active.reduce(
+        (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
+        0,
+    );
+    const paidExpenses = active
+        .filter((i) => i.paid)
+        .reduce((sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate), 0);
+    const unpaidExpenses = totalExpenses - paidExpenses;
+
+    const incomeAmount = (incomes ?? []).reduce(
+        (sum, t) => sum + amountToNgn(t.amount, t.currency, usdBuyRate),
+        0,
+    );
+    const incomeReceived = (incomes ?? []).reduce((sum, t) => {
+        const fromEntries = (t.entries ?? []).reduce(
+            (s, e) => s + amountToNgn(e.amount, e.currency, usdBuyRate),
+            0,
+        );
+        return (
+            sum +
+            (t.entries?.length
+                ? fromEntries
+                : amountToNgn(t.totalReceived ?? 0, t.currency, usdBuyRate))
+        );
+    }, 0);
+
+    const incomeOpen = Math.max(0, incomeAmount - incomeReceived);
+    return incomeOpen - unpaidExpenses;
+}
+
 function DraftsPage() {
     const { data: expenses, isLoading: loadingExp } = useExpenseDrafts();
     const { data: income, isLoading: loadingInc } = useIncomeDrafts();
     const { data: categories } = useCategories();
+    const { data: latestRate } = useLatestRate();
+    const usdBuyRate = latestRate?.usdBuyRate ?? 1;
     const setExpenseDraft = useSetItemDraft();
     const setIncomeDraft = useSetIncomeDraft();
     const deleteExpense = useDeleteBudgetItem();
@@ -114,6 +164,68 @@ function DraftsPage() {
     const incCount = income?.length ?? 0;
     const empty = !isLoading && expCount === 0 && incCount === 0;
     const activating = setExpenseDraft.isPending || setIncomeDraft.isPending;
+
+    const draftIncomeTotal = (income ?? []).reduce(
+        (sum, d) => sum + amountToNgn(d.amount, d.currency, usdBuyRate),
+        0,
+    );
+    const draftExpenseTotal = (expenses ?? []).reduce(
+        (sum, d) => sum + amountToNgn(d.amount, d.currency, usdBuyRate),
+        0,
+    );
+    const draftNet = draftIncomeTotal - draftExpenseTotal;
+
+    // Unchecked net per month (for "fits budget" indicator on expense drafts)
+    const yearMonths = useMemo(() => {
+        const set = new Set<string>();
+        for (const e of expenses ?? []) set.add(e.yearMonth);
+        return [...set];
+    }, [expenses]);
+
+    const monthRoomQueries = useQueries({
+        queries: yearMonths.map((ym) => ({
+            queryKey: ["drafts", "unchecked-net", ym],
+            queryFn: async () => {
+                const [items, incomes, rate] = await Promise.all([
+                    orpc.budget.getBudgetItems({ yearMonth: ym }),
+                    orpc.income.getIncomeTarget({ yearMonth: ym }) as Promise<
+                        IncomeTargetSummary[]
+                    >,
+                    orpc.rates.getRateForMonth({ yearMonth: ym }),
+                ]);
+                const rateBuy = rate?.usdBuyRate ?? usdBuyRate;
+                return {
+                    ym,
+                    uncheckedNet: computeUncheckedNet(items, incomes, rateBuy),
+                    usdBuyRate: rateBuy,
+                };
+            },
+            enabled: yearMonths.length > 0,
+            staleTime: 30_000,
+        })),
+    });
+
+    const roomByMonth = useMemo(() => {
+        const map = new Map<string, { uncheckedNet: number; usdBuyRate: number }>();
+        for (const q of monthRoomQueries) {
+            if (q.data) {
+                map.set(q.data.ym, {
+                    uncheckedNet: q.data.uncheckedNet,
+                    usdBuyRate: q.data.usdBuyRate,
+                });
+            }
+        }
+        return map;
+    }, [monthRoomQueries]);
+
+    const canFitBudget = (item: DraftExpense): boolean => {
+        const room = roomByMonth.get(item.yearMonth);
+        if (!room) return false;
+        // Only when there is positive room and the draft is smaller than that room
+        if (room.uncheckedNet <= 0) return false;
+        const amountNgn = amountToNgn(item.amount, item.currency, room.usdBuyRate);
+        return room.uncheckedNet > amountNgn;
+    };
 
     return (
         <div className="space-y-4 sm:space-y-5">
@@ -150,6 +262,46 @@ function DraftsPage() {
             {isLoading && (
                 <DivideFrame>
                     <div className="h-32 animate-pulse bg-muted/30" />
+                </DivideFrame>
+            )}
+
+            {!empty && !isLoading && (
+                <DivideFrame className="divide-y divide-border">
+                    <div className="px-4 py-2">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Balance
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Income
+                        </span>
+                        <span className="font-mono text-sm tabular-nums text-right text-success">
+                            {formatNGNFull(draftIncomeTotal)}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Expenses
+                        </span>
+                        <span className="font-mono text-sm tabular-nums text-right text-expense">
+                            −{formatNGNFull(draftExpenseTotal)}
+                        </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Net
+                        </span>
+                        <span
+                            className={cn(
+                                "font-mono text-sm font-semibold tabular-nums text-right",
+                                draftNet >= 0 ? "text-success" : "text-expense",
+                            )}
+                        >
+                            {draftNet >= 0 ? "+" : ""}
+                            {formatNGNFull(draftNet)}
+                        </span>
+                    </div>
                 </DivideFrame>
             )}
 
@@ -196,6 +348,7 @@ function DraftsPage() {
                             yearMonth={item.yearMonth}
                             category={item.category?.name ?? "Uncategorized"}
                             pending={activating}
+                            canFit={canFitBudget(item)}
                             onEdit={() => setEditExpense(item)}
                             onActivate={() =>
                                 setExpenseDraft.mutate({ id: item.id, isDraft: false })
@@ -484,7 +637,7 @@ function EditDraftExpenseForm({
                     ))}
                 </SelectContent>
             </Select>
-            <div className="flex items-center gap-3 py-1">
+            <div className="flex items-center gap-2 py-1">
                 <Checkbox
                     id="edit-draft-expense-recurring"
                     checked={isRecurring}
@@ -638,7 +791,7 @@ function EditDraftIncomeForm({
                     </Select>
                 </div>
             </div>
-            <div className="flex items-center gap-3 py-1">
+            <div className="flex items-center gap-2 py-1">
                 <Checkbox
                     id="edit-draft-income-recurring"
                     checked={isRecurring}
@@ -808,7 +961,7 @@ function DraftExpenseForm({
                     ))}
                 </SelectContent>
             </Select>
-            <div className="flex items-center gap-3 py-1">
+            <div className="flex items-center gap-2 py-1">
                 <Checkbox
                     id="draft-expense-recurring"
                     checked={isRecurring}
@@ -960,7 +1113,7 @@ function DraftIncomeForm({ onDone }: { onDone: () => void }) {
                     </Select>
                 </div>
             </div>
-            <div className="flex items-center gap-3 py-1">
+            <div className="flex items-center gap-2 py-1">
                 <Checkbox
                     id="draft-income-recurring"
                     checked={isRecurring}
@@ -1037,6 +1190,7 @@ function DraftExpenseRow({
     yearMonth,
     category,
     pending,
+    canFit,
     onEdit,
     onActivate,
     onDelete,
@@ -1047,22 +1201,24 @@ function DraftExpenseRow({
     yearMonth: string;
     category: string;
     pending: boolean;
+    /** Unchecked net for this month is greater than this draft amount */
+    canFit: boolean;
     onEdit: () => void;
     onActivate: () => void;
     onDelete: () => void;
 }) {
     return (
         <div className="bg-muted/40 px-4 py-3.5 opacity-80 transition-colors">
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2">
                 <div className="pt-0.5 shrink-0">
                     <div
-                        className="size-5 rounded border border-dashed border-muted-foreground/40"
+                        className="size-5 rounded-[3px] border-2 border-dashed border-border bg-background"
                         title="Draft — activate to track"
                     />
                 </div>
 
                 <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2">
                         <div className="min-w-0 flex-1">
                             <span className="min-w-0 truncate text-sm font-medium block">
                                 {name}
@@ -1073,7 +1229,7 @@ function DraftExpenseRow({
                         </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
                         <span className="font-medium text-muted-foreground">Expense</span>
                         <span className="text-muted-foreground/50">·</span>
                         <span className="font-medium text-muted-foreground">Draft</span>
@@ -1081,6 +1237,22 @@ function DraftExpenseRow({
                         <span className="truncate text-muted-foreground">
                             {monthLabel(yearMonth)}
                         </span>
+                        {canFit && (
+                            <>
+                                <span className="text-muted-foreground/50">·</span>
+                                <span
+                                    className="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-1.5 py-0.5 font-medium text-success"
+                                    title="Unchecked room covers this draft — safe to activate"
+                                >
+                                    <HugeiconsIcon
+                                        icon={Tick02Icon}
+                                        strokeWidth={2}
+                                        className="size-3"
+                                    />
+                                    Fits
+                                </span>
+                            </>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1171,16 +1343,16 @@ function DraftIncomeRow({
 }) {
     return (
         <div className="bg-muted/40 px-4 py-3.5 opacity-80 transition-colors">
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-2">
                 <div className="pt-0.5 shrink-0">
                     <div
-                        className="size-5 rounded border border-dashed border-muted-foreground/40"
+                        className="size-5 rounded-[3px] border-2 border-dashed border-border bg-background"
                         title="Draft — activate to track"
                     />
                 </div>
 
                 <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2">
                         <div className="min-w-0 flex-1">
                             <span className="block min-w-0 truncate text-sm font-medium">
                                 {name}

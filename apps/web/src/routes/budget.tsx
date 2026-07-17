@@ -1,4 +1,4 @@
-import { createFileRoute, useSearch, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import { toNgn, type BudgetMonthStatus, type Currency } from "@expense/shared";
@@ -24,7 +24,6 @@ import {
     useMonthAnalysis,
     useRateForMonth,
     useUpsertRate,
-    useIncomeDrafts,
     type BudgetItem,
     type IncomeTargetSummary,
 } from "../lib/queries";
@@ -67,6 +66,7 @@ import {
     CheckmarkCircle02Icon,
     Edit02Icon,
     InboxDownloadIcon,
+    Loading03Icon,
 } from "@hugeicons/core-free-icons";
 
 type TypeFilter = "all" | "income" | "expense";
@@ -358,6 +358,11 @@ function BudgetPage() {
     const addIncomeEntry = useAddIncomeEntry();
     const upsertRate = useUpsertRate();
 
+    const isRowTogglePending = (id: string) =>
+        (togglePaid.isPending && togglePaid.variables === id) ||
+        (addIncomeEntry.isPending &&
+            addIncomeEntry.variables?.incomeTargetId === id);
+
     const allRows = useMemo(
         () => buildUnifiedRows(items, incomes, isCompleted),
         [items, incomes, isCompleted],
@@ -610,16 +615,14 @@ function BudgetPage() {
 
                     {!isLoading && (
                         <>
-                            {/* Summary is its own frame — separate from the items list */}
-                            {typeFilter !== "expense" &&
-                                ((incomes && incomes.length > 0) || (items && items.length > 0)) && (
-                                    <BudgetSummary
-                                        yearMonth={yearMonth}
-                                        incomes={incomes}
-                                        items={items}
-                                        usdBuyRate={rate?.usdBuyRate ?? 1}
-                                    />
-                                )}
+                            {/* Summary on every tab when the month has data */}
+                            {((incomes && incomes.length > 0) || (items && items.length > 0)) && (
+                                <BudgetSummary
+                                    incomes={incomes}
+                                    items={items}
+                                    usdBuyRate={rate?.usdBuyRate ?? 1}
+                                />
+                            )}
 
                             {(visibleRows.length > 0 || isPlanning) && (
                             <DivideFrame className="divide-y divide-border">
@@ -638,6 +641,7 @@ function BudgetPage() {
                                                     key={`${row.kind}-${row.id}`}
                                                     row={row}
                                                     readOnly={isReadOnly}
+                                                    togglePending={isRowTogglePending(row.id)}
                                                     onTogglePaid={() => togglePaid.mutate(row.id)}
                                                     onToggleIncome={() => {
                                                         if (row.kind === "income-target") {
@@ -718,7 +722,6 @@ function BudgetPage() {
                                         <Table containerClassName="relative w-full overflow-x-auto">
                                             <TableHeader>
                                                 <TableRow className="hover:bg-transparent">
-                                                    <TableHead className="w-10" />
                                                     <TableHead>Name</TableHead>
                                                     <TableHead>Type</TableHead>
                                                     <TableHead>Category</TableHead>
@@ -733,6 +736,7 @@ function BudgetPage() {
                                                         key={`${row.kind}-${row.id}`}
                                                         row={row}
                                                         readOnly={isReadOnly}
+                                                        togglePending={isRowTogglePending(row.id)}
                                                         onTogglePaid={() => togglePaid.mutate(row.id)}
                                                         onToggleIncome={() => {
                                                             if (row.kind === "income-target") {
@@ -864,7 +868,7 @@ function BudgetPage() {
                         {carryOverCandidates.map((item) => (
                             <label
                                 key={item.id}
-                                className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 cursor-pointer hover:bg-muted/40"
+                                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5 cursor-pointer hover:bg-muted/40"
                             >
                                 <Checkbox
                                     checked={carryOverSelected.has(item.id)}
@@ -1065,12 +1069,10 @@ function SummaryMetricRow({
 }
 
 function BudgetSummary({
-    yearMonth,
     incomes,
     items,
     usdBuyRate,
 }: {
-    yearMonth: string;
     incomes: IncomeTargetSummary[] | undefined;
     items: {
         amount: number;
@@ -1080,11 +1082,8 @@ function BudgetSummary({
     }[] | undefined;
     usdBuyRate: number;
 }) {
-    const { data: incomeDrafts } = useIncomeDrafts();
-
     // Always normalize to NGN so mixed USD/NGN lines sum correctly
     const activeItems = items?.filter((i) => !i.isDraft) ?? [];
-    const draftExpenseItems = items?.filter((i) => i.isDraft) ?? [];
 
     const totalExpenses = activeItems.reduce(
         (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
@@ -1108,40 +1107,28 @@ function BudgetSummary({
         return sum + (t.entries.length > 0 ? fromEntries : amountToNgn(t.totalReceived, t.currency, usdBuyRate));
     }, 0);
 
-    // Draft income for this month (month view API excludes drafts)
-    const monthIncomeDrafts = (incomeDrafts ?? []).filter((d) => d.yearMonth === yearMonth);
-    const draftIncomeTotal = monthIncomeDrafts.reduce(
-        (sum, d) => sum + amountToNgn(d.amount, d.currency, usdBuyRate),
-        0,
-    );
-    const draftExpenseTotal = draftExpenseItems.reduce(
-        (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
-        0,
-    );
-    const draftNet = draftIncomeTotal - draftExpenseTotal;
-    const draftCount = draftExpenseItems.length + monthIncomeDrafts.length;
-
     const incomeOpen = Math.max(0, incomeAmount - incomeReceived);
     const checkedNet = incomeReceived - paidExpenses;
     const uncheckedNet = incomeOpen - unpaidExpenses;
 
-    const hasData =
-        incomeAmount > 0 || totalExpenses > 0 || draftCount > 0;
+    const hasData = incomeAmount > 0 || totalExpenses > 0;
     if (!hasData) return null;
 
+    // Keep currency symbol on aggregated targets: / ₦100,000
     const targetSuffix = (total: number) =>
         total > 0 ? (
             <span className="mt-0.5 block font-mono text-[11px] font-normal tabular-nums text-muted-foreground">
-                / {formatNGNFull(total).replace(/^₦/, "")}
+                / {formatNGNFull(total)}
             </span>
         ) : null;
 
     const showBreakdown = incomeAmount > 0 || totalExpenses > 0;
-    const showDrafts = draftCount > 0;
+    // Mobile: collapse checked/unchecked by default; always open on sm+
+    const [detailsOpen, setDetailsOpen] = useState(false);
 
     return (
         <div className="space-y-3 sm:space-y-4">
-            {/* Root totals — left-aligned amounts */}
+            {/* Root totals — always visible */}
             <DivideFrame className="divide-y divide-border">
                 <div className="grid grid-cols-2 divide-x divide-border">
                     <div className="px-4 py-3.5">
@@ -1163,101 +1150,100 @@ function BudgetSummary({
                         {targetSuffix(totalExpenses)}
                     </div>
                 </div>
+
+                {/* Mobile-only control to reveal checked / unchecked */}
+                {showBreakdown && (
+                    <button
+                        type="button"
+                        onClick={() => setDetailsOpen((o) => !o)}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:hidden"
+                        aria-expanded={detailsOpen}
+                    >
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {detailsOpen ? "Hide details" : "Show details"}
+                        </span>
+                        <span className="flex items-center gap-2">
+                            {!detailsOpen && (
+                                <span
+                                    className={cn(
+                                        "font-mono text-xs font-semibold tabular-nums",
+                                        checkedNet >= 0 ? "text-success" : "text-expense",
+                                    )}
+                                >
+                                    {checkedNet >= 0 ? "+" : ""}
+                                    {formatNGNFull(checkedNet)}
+                                </span>
+                            )}
+                            <HugeiconsIcon
+                                icon={ArrowDown01Icon}
+                                strokeWidth={2}
+                                className={cn(
+                                    "size-4 text-muted-foreground transition-transform",
+                                    detailsOpen && "rotate-180",
+                                )}
+                            />
+                        </span>
+                    </button>
+                )}
             </DivideFrame>
 
-            {/* Checked / Unchecked — separate frame from income/expense list */}
+            {/* Checked / Unchecked — collapsed on mobile until opened */}
             {showBreakdown && (
-                <DivideFrame>
-                    <div className="grid grid-cols-2 divide-x divide-border">
-                        {/* Checked column — each metric is its own split row */}
-                        <div className="divide-y divide-border min-w-0">
-                            <div className="px-4 py-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                                    Checked
-                                </p>
+                <div className={cn(detailsOpen ? "block" : "hidden sm:block")}>
+                    <DivideFrame>
+                        <div className="grid grid-cols-2 divide-x divide-border">
+                            <div className="divide-y divide-border min-w-0">
+                                <div className="px-4 py-2">
+                                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                        Checked
+                                    </p>
+                                </div>
+                                <SummaryMetricRow
+                                    label="Received"
+                                    amount={formatNGNFull(incomeReceived)}
+                                />
+                                <SummaryMetricRow
+                                    label="Paid"
+                                    amount={`−${formatNGNFull(paidExpenses)}`}
+                                />
+                                <SummaryMetricRow
+                                    label="Net"
+                                    amount={`${checkedNet >= 0 ? "+" : ""}${formatNGNFull(checkedNet)}`}
+                                    amountClassName={
+                                        checkedNet >= 0
+                                            ? "font-semibold text-success"
+                                            : "font-semibold text-expense"
+                                    }
+                                />
                             </div>
-                            <SummaryMetricRow
-                                label="Received"
-                                amount={formatNGNFull(incomeReceived)}
-                            />
-                            <SummaryMetricRow
-                                label="Paid"
-                                amount={`−${formatNGNFull(paidExpenses)}`}
-                            />
-                            <SummaryMetricRow
-                                label="Net"
-                                amount={`${checkedNet >= 0 ? "+" : ""}${formatNGNFull(checkedNet)}`}
-                                amountClassName={
-                                    checkedNet >= 0
-                                        ? "font-semibold text-success"
-                                        : "font-semibold text-expense"
-                                }
-                            />
-                        </div>
 
-                        {/* Unchecked column */}
-                        <div className="divide-y divide-border min-w-0">
-                            <div className="px-4 py-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                                    Unchecked
-                                </p>
+                            <div className="divide-y divide-border min-w-0">
+                                <div className="px-4 py-2">
+                                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                        Unchecked
+                                    </p>
+                                </div>
+                                <SummaryMetricRow
+                                    label="Open"
+                                    amount={formatNGNFull(incomeOpen)}
+                                />
+                                <SummaryMetricRow
+                                    label="Unpaid"
+                                    amount={`−${formatNGNFull(unpaidExpenses)}`}
+                                />
+                                <SummaryMetricRow
+                                    label="Net"
+                                    amount={`${uncheckedNet >= 0 ? "+" : ""}${formatNGNFull(uncheckedNet)}`}
+                                    amountClassName={
+                                        uncheckedNet >= 0
+                                            ? "font-semibold text-success"
+                                            : "font-semibold text-expense"
+                                    }
+                                />
                             </div>
-                            <SummaryMetricRow
-                                label="Open"
-                                amount={formatNGNFull(incomeOpen)}
-                            />
-                            <SummaryMetricRow
-                                label="Unpaid"
-                                amount={`−${formatNGNFull(unpaidExpenses)}`}
-                            />
-                            <SummaryMetricRow
-                                label="Net"
-                                amount={`${uncheckedNet >= 0 ? "+" : ""}${formatNGNFull(uncheckedNet)}`}
-                                amountClassName={
-                                    uncheckedNet >= 0
-                                        ? "font-semibold text-success"
-                                        : "font-semibold text-expense"
-                                }
-                            />
                         </div>
-                    </div>
-                </DivideFrame>
-            )}
-
-            {/* Drafts balance — excluded from active totals */}
-            {showDrafts && (
-                <DivideFrame className="divide-y divide-border">
-                    <div className="flex items-center justify-between gap-3 px-4 py-2">
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            Drafts
-                        </p>
-                        <Link
-                            to="/drafts"
-                            className="text-[10px] font-medium uppercase tracking-wider text-primary hover:underline underline-offset-2"
-                        >
-                            View all
-                        </Link>
-                    </div>
-                    <SummaryMetricRow
-                        label="Income"
-                        amount={formatNGNFull(draftIncomeTotal)}
-                        amountClassName="text-success"
-                    />
-                    <SummaryMetricRow
-                        label="Expenses"
-                        amount={`−${formatNGNFull(draftExpenseTotal)}`}
-                        amountClassName="text-expense"
-                    />
-                    <SummaryMetricRow
-                        label="Balance"
-                        amount={`${draftNet >= 0 ? "+" : ""}${formatNGNFull(draftNet)}`}
-                        amountClassName={
-                            draftNet >= 0
-                                ? "font-semibold text-success"
-                                : "font-semibold text-expense"
-                        }
-                    />
-                </DivideFrame>
+                    </DivideFrame>
+                </div>
             )}
         </div>
     );
@@ -1496,6 +1482,7 @@ function getUnifiedRowMeta(row: UnifiedRow) {
 type UnifiedBudgetRowProps = {
     row: UnifiedRow;
     readOnly: boolean;
+    togglePending?: boolean;
     onTogglePaid: () => void;
     onToggleIncome: () => void;
     onDeleteExpense: () => void;
@@ -1507,19 +1494,44 @@ type UnifiedBudgetRowProps = {
     onCategoryClick: (cat: { categoryId: string | null; categoryName: string }) => void;
 };
 
+function CheckboxLoading() {
+    return (
+        <div
+            className="flex size-5 shrink-0 items-center justify-center rounded-[3px] border-2 border-border bg-background"
+            aria-busy="true"
+            aria-label="Updating"
+            title="Updating…"
+        >
+            <HugeiconsIcon
+                icon={Loading03Icon}
+                strokeWidth={2}
+                className="size-3 animate-spin text-muted-foreground"
+            />
+        </div>
+    );
+}
+
 function BudgetRowCheckbox({
     row,
     readOnly,
+    togglePending,
     onTogglePaid,
     onToggleIncome,
-}: Pick<UnifiedBudgetRowProps, "row" | "readOnly" | "onTogglePaid" | "onToggleIncome">) {
+}: Pick<
+    UnifiedBudgetRowProps,
+    "row" | "readOnly" | "togglePending" | "onTogglePaid" | "onToggleIncome"
+>) {
     const { isExpense, isIncome, isDraft } = getUnifiedRowMeta(row);
+
+    if (togglePending) {
+        return <CheckboxLoading />;
+    }
 
     if (isExpense) {
         if (isDraft) {
             return (
                 <div
-                    className="size-5 rounded border border-dashed border-muted-foreground/40"
+                    className="size-5 shrink-0 rounded-[3px] border-2 border-dashed border-border bg-background"
                     title="Draft — activate to track"
                 />
             );
@@ -1547,7 +1559,7 @@ function BudgetRowCheckbox({
         );
     }
 
-    return <div className="size-5" />;
+    return <div className="size-5 shrink-0" />;
 }
 
 function BudgetRowActions({
@@ -1670,10 +1682,11 @@ function BudgetRowActions({
     );
 }
 
-/** Mobile list row — stacked so long categories never fight amount/actions. */
+/** Mobile list row — checkbox sits with the title only, not the full card stack. */
 function UnifiedBudgetCard({
     row,
     readOnly,
+    togglePending,
     onTogglePaid,
     onToggleIncome,
     onDeleteExpense,
@@ -1689,102 +1702,95 @@ function UnifiedBudgetCard({
     return (
         <div
             className={cn(
-                "px-4 py-3.5 transition-colors",
+                "space-y-1.5 px-4 py-3.5 transition-colors",
                 meta.rowBg,
                 meta.paid && "opacity-75",
                 meta.isDraft && "opacity-80",
             )}
         >
-            <div className="flex items-start gap-3">
-                <div className="pt-0.5 shrink-0">
-                    <BudgetRowCheckbox
+            {/* Title row: checkbox + name · amount */}
+            <div className="flex items-center gap-2">
+                <BudgetRowCheckbox
+                    row={row}
+                    readOnly={readOnly}
+                    togglePending={togglePending}
+                    onTogglePaid={onTogglePaid}
+                    onToggleIncome={onToggleIncome}
+                />
+                <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                    <span
+                        className={cn(
+                            "min-w-0 truncate text-sm font-medium",
+                            meta.paid && "line-through",
+                        )}
+                    >
+                        {row.name}
+                    </span>
+                    {meta.isRecurring && (
+                        <HugeiconsIcon
+                            icon={RepeatIcon}
+                            strokeWidth={2}
+                            className="size-3.5 shrink-0 text-primary"
+                        />
+                    )}
+                </div>
+                <span
+                    className={cn(
+                        "shrink-0 font-mono text-sm font-semibold tabular-nums leading-5",
+                        meta.isIncome && "text-success",
+                    )}
+                >
+                    {formatAmount(row.amount, row.currency)}
+                </span>
+            </div>
+
+            {/* Meta — full width under the title (no checkbox column) */}
+            <div className="flex items-center gap-1.5 text-xs">
+                <span
+                    className={cn(
+                        "font-medium",
+                        meta.isIncome ? "text-success" : "text-muted-foreground",
+                    )}
+                >
+                    {meta.typeLabel}
+                </span>
+                <span className="text-muted-foreground/50">·</span>
+                <span className={cn("font-medium", meta.statusClass)}>
+                    {meta.statusLabel}
+                </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                    {meta.isExpense && row.kind === "expense" ? (
+                        <CategoryBadge
+                            categoryName={row.category}
+                            onClick={() =>
+                                onCategoryClick({
+                                    categoryId: row.categoryId,
+                                    categoryName: row.category,
+                                })
+                            }
+                            className="w-fit max-w-full"
+                        />
+                    ) : (
+                        <p className="truncate text-xs text-muted-foreground">
+                            {meta.categoryOrSource}
+                        </p>
+                    )}
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                    <BudgetRowActions
                         row={row}
                         readOnly={readOnly}
-                        onTogglePaid={onTogglePaid}
-                        onToggleIncome={onToggleIncome}
+                        onDeleteExpense={onDeleteExpense}
+                        onDeleteIncomeEntry={onDeleteIncomeEntry}
+                        onDeleteIncome={onDeleteIncome}
+                        onEditIncome={onEditIncome}
+                        onEditExpense={onEditExpense}
+                        onSetDraft={onSetDraft}
+                        mobile
                     />
-                </div>
-
-                <div className="min-w-0 flex-1 space-y-1.5">
-                    {/* Row 1: name + amount */}
-                    <div className="flex items-start gap-3">
-                        <div className="min-w-0 flex-1 flex items-center gap-1.5">
-                            <span
-                                className={cn(
-                                    "min-w-0 truncate text-sm font-medium",
-                                    meta.paid && "line-through",
-                                )}
-                            >
-                                {row.name}
-                            </span>
-                            {meta.isRecurring && (
-                                <HugeiconsIcon
-                                    icon={RepeatIcon}
-                                    strokeWidth={2}
-                                    className="size-3.5 shrink-0 text-primary"
-                                />
-                            )}
-                        </div>
-                        <span
-                            className={cn(
-                                "shrink-0 font-mono text-sm font-semibold tabular-nums leading-5",
-                                meta.isIncome && "text-success",
-                            )}
-                        >
-                            {formatAmount(row.amount, row.currency)}
-                        </span>
-                    </div>
-
-                    {/* Row 2: type · status (short, never wraps awkwardly) */}
-                    <div className="flex items-center gap-1.5 text-xs">
-                        <span
-                            className={cn(
-                                "font-medium",
-                                meta.isIncome ? "text-success" : "text-muted-foreground",
-                            )}
-                        >
-                            {meta.typeLabel}
-                        </span>
-                        <span className="text-muted-foreground/50">·</span>
-                        <span className={cn("font-medium", meta.statusClass)}>
-                            {meta.statusLabel}
-                        </span>
-                    </div>
-
-                    {/* Row 3: category (full-width truncate) + actions */}
-                    <div className="flex items-center gap-2">
-                        <div className="min-w-0 flex-1">
-                            {meta.isExpense && row.kind === "expense" ? (
-                                <CategoryBadge
-                                    categoryName={row.category}
-                                    onClick={() =>
-                                        onCategoryClick({
-                                            categoryId: row.categoryId,
-                                            categoryName: row.category,
-                                        })
-                                    }
-                                    className="w-fit max-w-full"
-                                />
-                            ) : (
-                                <p className="truncate text-xs text-muted-foreground">
-                                    {meta.categoryOrSource}
-                                </p>
-                            )}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-0.5">
-                            <BudgetRowActions
-                                row={row}
-                                readOnly={readOnly}
-                                onDeleteExpense={onDeleteExpense}
-                                onDeleteIncomeEntry={onDeleteIncomeEntry}
-                                onDeleteIncome={onDeleteIncome}
-                                onEditIncome={onEditIncome}
-                                onEditExpense={onEditExpense}
-                                onSetDraft={onSetDraft}
-                                mobile
-                            />
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1794,6 +1800,7 @@ function UnifiedBudgetCard({
 function UnifiedBudgetRow({
     row,
     readOnly,
+    togglePending,
     onTogglePaid,
     onToggleIncome,
     onDeleteExpense,
@@ -1808,22 +1815,26 @@ function UnifiedBudgetRow({
 
     return (
         <TableRow className={`group ${meta.paid ? "opacity-60" : ""} ${meta.rowBg} ${meta.isDraft ? "opacity-80" : ""}`}>
-            <TableCell className="w-12">
-                <div className="flex items-center">
+            {/* Checkbox only beside title */}
+            <TableCell>
+                <div className="flex min-w-0 items-center gap-2">
                     <BudgetRowCheckbox
                         row={row}
                         readOnly={readOnly}
+                        togglePending={togglePending}
                         onTogglePaid={onTogglePaid}
                         onToggleIncome={onToggleIncome}
                     />
-                </div>
-            </TableCell>
-            <TableCell>
-                <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                        <span className={`font-medium truncate ${meta.paid ? "line-through" : ""}`}>{row.name}</span>
+                    <div className="min-w-0 flex items-center gap-1.5">
+                        <span className={`font-medium truncate ${meta.paid ? "line-through" : ""}`}>
+                            {row.name}
+                        </span>
                         {meta.isRecurring && (
-                            <HugeiconsIcon icon={RepeatIcon} strokeWidth={2} className="size-3.5 text-primary shrink-0" />
+                            <HugeiconsIcon
+                                icon={RepeatIcon}
+                                strokeWidth={2}
+                                className="size-3.5 text-primary shrink-0"
+                            />
                         )}
                     </div>
                 </div>
@@ -1939,11 +1950,11 @@ function AddItemForm({
                     ))}
                 </SelectContent>
             </Select>
-            <div className="flex items-center gap-3 py-2">
+            <div className="flex items-center gap-2 py-2">
                 <Checkbox id="recurring" checked={isRecurring} onCheckedChange={(v) => setIsRecurring(v === true)} />
                 <label htmlFor="recurring" className="text-sm cursor-pointer select-none">Recurring</label>
             </div>
-            <div className="flex items-center gap-3 py-1">
+            <div className="flex items-center gap-2 py-1">
                 <Checkbox
                     id="expense-draft"
                     checked={saveAsDraft}
@@ -2073,7 +2084,7 @@ function EditItemForm({
             </Select>
             {item.isRecurring && (
                 <>
-                    <div className="flex items-center gap-3 py-1">
+                    <div className="flex items-center gap-2 py-1">
                         <Checkbox id="edit-update-base" checked={updateBase} onCheckedChange={(v) => setUpdateBase(v === true)} />
                         <label htmlFor="edit-update-base" className="text-sm cursor-pointer select-none">
                             Update recurring template (affects future months)
@@ -2204,12 +2215,12 @@ function IncomeForm({
                     </Select>
                 </div>
             </div>
-            <div className="flex items-center gap-3 py-1">
+            <div className="flex items-center gap-2 py-1">
                 <Checkbox id="income-recurring" checked={isRecurring} onCheckedChange={(v) => setIsRecurring(v === true)} />
                 <label htmlFor="income-recurring" className="text-sm cursor-pointer select-none">Recurring</label>
             </div>
             {!income && (
-                <div className="flex items-center gap-3 py-1">
+                <div className="flex items-center gap-2 py-1">
                     <Checkbox
                         id="income-draft"
                         checked={saveAsDraft}
@@ -2221,7 +2232,7 @@ function IncomeForm({
                 </div>
             )}
             {income?.isRecurring && (
-                <div className="flex items-center gap-3 py-1">
+                <div className="flex items-center gap-2 py-1">
                     <Checkbox id="income-update-base" checked={updateBase} onCheckedChange={(v) => setUpdateBase(v === true)} />
                     <label htmlFor="income-update-base" className="text-sm cursor-pointer select-none">
                         Update recurring template (affects future months)
