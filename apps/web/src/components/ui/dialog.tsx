@@ -57,7 +57,8 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/5 duration-100 outline-none sm:max-w-md dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Width is viewport − side gutter so max-w-* overrides never go edge-to-edge on mobile
+          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-h-[min(90dvh,calc(100dvh-2rem))] max-w-md -translate-x-1/2 -translate-y-1/2 gap-6 overflow-y-auto rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/5 duration-100 outline-none dark:ring-foreground/10 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -163,7 +164,8 @@ function DialogPanelContent({
       <DialogPrimitive.Popup
         data-slot="dialog-panel-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-0 overflow-hidden rounded-xl bg-popover text-sm text-popover-foreground ring-1 ring-border duration-100 outline-none sm:max-w-md dark:ring-border data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Always leave ~1rem gutter each side on small screens; max-w-* only caps desktop size
+          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100vw-2rem)] max-h-[min(90dvh,calc(100dvh-2rem))] max-w-md -translate-x-1/2 -translate-y-1/2 gap-0 overflow-hidden rounded-xl bg-popover text-sm text-popover-foreground ring-1 ring-border duration-100 outline-none dark:ring-border data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

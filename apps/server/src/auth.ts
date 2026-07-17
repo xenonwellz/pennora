@@ -6,6 +6,7 @@ import { env, isEmailEnabled, isGoogleEnabled } from "./config";
 import { db } from "./db";
 import { user } from "./db/schema/auth";
 import { sendEmail } from "./services/email.service";
+import { passwordResetEmail } from "./services/email-templates";
 import { InvitationService } from "./services/invitation.service";
 
 const invitationService = new InvitationService();
@@ -30,14 +31,12 @@ export const auth = betterAuth({
         ...(isEmailEnabled()
             ? {
                 sendResetPassword: async ({ user: resetUser, url }) => {
+                    const mail = passwordResetEmail(url);
                     await sendEmail({
                         to: resetUser.email,
-                        subject: "Reset your Peak Finance password",
-                        html: `
-                              <p>We received a request to reset your Peak Finance password.</p>
-                              <p><a href="${url}">Reset password</a></p>
-                              <p>If you didn't request this, you can ignore this email.</p>
-                          `,
+                        subject: mail.subject,
+                        html: mail.html,
+                        text: mail.text,
                     });
                 },
             }

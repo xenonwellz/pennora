@@ -7,6 +7,7 @@ import { user } from "../db/schema/auth";
 import { BudgetMembersRepo } from "../repos/budget-members.repo";
 import { BudgetsRepo } from "../repos/budgets.repo";
 import { sendEmail } from "./email.service";
+import { budgetInviteEmail } from "./email-templates";
 
 const INVITE_EXPIRY_DAYS = 7;
 
@@ -67,14 +68,16 @@ export class InvitationService {
         let emailSent = false;
 
         if (isEmailEnabled()) {
+            const mail = budgetInviteEmail({
+                budgetName: budget.name,
+                inviteUrl,
+                expiresInDays: INVITE_EXPIRY_DAYS,
+            });
             await sendEmail({
                 to: normalizedEmail,
-                subject: `You're invited to collaborate on ${budget.name}`,
-                html: `
-                    <p>You've been invited to collaborate on <strong>${budget.name}</strong> in Peak Finance.</p>
-                    <p><a href="${inviteUrl}">Accept invitation</a></p>
-                    <p>This link expires in ${INVITE_EXPIRY_DAYS} days.</p>
-                `,
+                subject: mail.subject,
+                html: mail.html,
+                text: mail.text,
             });
             emailSent = true;
         }
