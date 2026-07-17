@@ -173,7 +173,6 @@ function DraftsPage() {
         (sum, d) => sum + amountToNgn(d.amount, d.currency, usdBuyRate),
         0,
     );
-    const draftNet = draftIncomeTotal - draftExpenseTotal;
 
     // Unchecked net per month (for "fits budget" indicator on expense drafts)
     const yearMonths = useMemo(() => {
@@ -286,20 +285,6 @@ function DraftsPage() {
                         </span>
                         <span className="font-mono text-sm tabular-nums text-right text-expense">
                             −{formatNGNFull(draftExpenseTotal)}
-                        </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            Net
-                        </span>
-                        <span
-                            className={cn(
-                                "font-mono text-sm font-semibold tabular-nums text-right",
-                                draftNet >= 0 ? "text-success" : "text-expense",
-                            )}
-                        >
-                            {draftNet >= 0 ? "+" : ""}
-                            {formatNGNFull(draftNet)}
                         </span>
                     </div>
                 </DivideFrame>
