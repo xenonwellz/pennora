@@ -10,12 +10,16 @@ const budgetGuard = (b: string | null | undefined) => {
     return b;
 };
 
+/** All income targets for a month (multiple sources supported). */
 export const getIncomeTarget = authorized
     .input(z.object({ yearMonth: z.string().regex(/^\d{4}-\d{2}$/) }))
     .handler(({ context, input }) =>
-        income.getMonthSummary(budgetGuard(context.user.activeBudgetId), input.yearMonth),
+        income.getMonthSummaries(budgetGuard(context.user.activeBudgetId), input.yearMonth),
     );
 
+export const getIncomeTargets = getIncomeTarget;
+
+/** Create a new income source for the month (does not replace existing). */
 export const setIncomeTarget = authorized
     .input(z.object({
         yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
@@ -29,7 +33,7 @@ export const setIncomeTarget = authorized
     .handler(async ({ context, input }) => {
         const budgetId = budgetGuard(context.user.activeBudgetId);
         await months.requirePlanning(budgetId, input.yearMonth);
-        return income.setTarget(budgetId, input);
+        return income.createTarget(budgetId, input);
     });
 
 export const updateIncomeTarget = authorized
@@ -50,6 +54,16 @@ export const updateIncomeTarget = authorized
         if (!current) throw new ORPCError("NOT_FOUND", { message: "Income target not found" });
         await months.requirePlanning(budgetId, current.yearMonth);
         return income.updateTarget(budgetId, id, data);
+    });
+
+export const deleteIncomeTarget = authorized
+    .input(z.object({ id: z.string() }))
+    .handler(async ({ context, input }) => {
+        const budgetId = budgetGuard(context.user.activeBudgetId);
+        const current = await income.getTargetById(budgetId, input.id);
+        if (!current) throw new ORPCError("NOT_FOUND", { message: "Income target not found" });
+        await months.requirePlanning(budgetId, current.yearMonth);
+        return income.deleteTarget(budgetId, input.id);
     });
 
 export const addIncomeEntry = authorized

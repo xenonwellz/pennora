@@ -3,17 +3,34 @@ import { monthsBetween, compareYearMonth } from "@expense/shared";
 import { BaseService } from "./base.service";
 
 export class IncomeService extends BaseService {
-    async getMonthSummary(budgetId: string, yearMonth: string) {
-        const target = await this.income.findTarget(budgetId, yearMonth);
+    async getMonthSummaries(budgetId: string, yearMonth: string) {
+        const targets = await this.income.findTargets(budgetId, yearMonth);
         const entries = await this.income.findEntries(budgetId, yearMonth);
 
-        const totalReceived = entries.reduce((acc, e) => acc + e.amount, 0);
-
-        return target
-            ? { ...target, entries, totalReceived }
-            : null;
+        return targets.map((target) => {
+            const targetEntries = entries.filter((e) => e.incomeTargetId === target.id);
+            // Raw sum (same-currency assumption for checkbox UI). Analytics converts properly.
+            const totalReceived = targetEntries.reduce((acc, e) => acc + e.amount, 0);
+            return { ...target, entries: targetEntries, totalReceived };
+        });
     }
 
+    createTarget(
+        budgetId: string,
+        data: {
+            yearMonth: string;
+            amount: number;
+            currency: string;
+            label?: string;
+            isRecurring?: boolean;
+            frequencyMonths?: number;
+            endsAtYearMonth?: string | null;
+        },
+    ) {
+        return this.income.createTarget(budgetId, data);
+    }
+
+    /** @deprecated alias — always creates a new target (multi-income) */
     setTarget(
         budgetId: string,
         data: {
@@ -26,7 +43,7 @@ export class IncomeService extends BaseService {
             endsAtYearMonth?: string | null;
         },
     ) {
-        return this.income.upsertTarget(budgetId, data);
+        return this.createTarget(budgetId, data);
     }
 
     async getTargetById(budgetId: string, targetId: string) {
@@ -73,46 +90,64 @@ export class IncomeService extends BaseService {
                 fromMonth,
                 cleanPatch,
             );
-            return this.income.findTarget(budgetId, current.yearMonth);
+            return this.income.findTargetById(budgetId, targetId);
         }
 
         return this.income.updateTarget(targetId, cleanPatch);
     }
 
-    async generateFromRecurring(budgetId: string, yearMonth: string) {
-        const existing = await this.income.findTarget(budgetId, yearMonth);
-        if (existing) return { created: 0 };
-
-        const templates = await this.income.findRecurringTemplates(budgetId);
-        const recurringTarget = templates[0];
-        if (!recurringTarget) return { created: 0 };
-
-        if (
-            recurringTarget.endsAtYearMonth &&
-            compareYearMonth(yearMonth, recurringTarget.endsAtYearMonth) > 0
-        ) {
-            return { created: 0 };
-        }
-
-        const monthsSinceStart = monthsBetween(recurringTarget.yearMonth, yearMonth);
-        if (monthsSinceStart < 0 || monthsSinceStart % recurringTarget.frequencyMonths !== 0) {
-            return { created: 0 };
-        }
-
-        await this.income.upsertTarget(budgetId, {
-            yearMonth,
-            amount: recurringTarget.amount,
-            currency: recurringTarget.currency,
-            label: recurringTarget.label ?? undefined,
-            isRecurring: true,
-            frequencyMonths: recurringTarget.frequencyMonths,
-            endsAtYearMonth: recurringTarget.endsAtYearMonth,
-        });
-
-        return { created: 1 };
+    async deleteTarget(budgetId: string, targetId: string) {
+        const current = await this.income.findTargetById(budgetId, targetId);
+        if (!current) throw new ORPCError("NOT_FOUND", { message: "Income target not found" });
+        await this.income.deleteEntriesForTarget(targetId);
+        await this.income.deleteTarget(targetId);
+        return { ok: true as const };
     }
 
-    addEntry(budgetId: string, data: { incomeTargetId: string; yearMonth: string; amount: number; currency: string }) {
+    async generateFromRecurring(budgetId: string, yearMonth: string) {
+        const templates = await this.income.findRecurringTemplates(budgetId);
+        if (templates.length === 0) return { created: 0 };
+
+        const existing = await this.income.findTargets(budgetId, yearMonth);
+        const existingLabels = new Set(existing.map((t) => t.label ?? "Income"));
+
+        let created = 0;
+        for (const template of templates) {
+            const label = template.label ?? "Income";
+            if (existingLabels.has(label)) continue;
+
+            if (
+                template.endsAtYearMonth &&
+                compareYearMonth(yearMonth, template.endsAtYearMonth) > 0
+            ) {
+                continue;
+            }
+
+            const monthsSinceStart = monthsBetween(template.yearMonth, yearMonth);
+            if (monthsSinceStart < 0 || monthsSinceStart % template.frequencyMonths !== 0) {
+                continue;
+            }
+
+            await this.income.createTarget(budgetId, {
+                yearMonth,
+                amount: template.amount,
+                currency: template.currency,
+                label: template.label ?? undefined,
+                isRecurring: true,
+                frequencyMonths: template.frequencyMonths,
+                endsAtYearMonth: template.endsAtYearMonth,
+            });
+            existingLabels.add(label);
+            created += 1;
+        }
+
+        return { created };
+    }
+
+    addEntry(
+        budgetId: string,
+        data: { incomeTargetId: string; yearMonth: string; amount: number; currency: string },
+    ) {
         return this.income.createEntry({ budgetId, ...data });
     }
 

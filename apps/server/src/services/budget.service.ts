@@ -116,8 +116,19 @@ export class BudgetService extends BaseService {
     async togglePaid(budgetId: string, itemId: string) {
         const item = await this.budgetItems.findById(budgetId, itemId);
         if (!item) throw new ORPCError("NOT_FOUND", { message: "Budget item not found" });
+        if (item.isDraft) {
+            throw new ORPCError("BAD_REQUEST", {
+                message: "Activate the draft expense before marking it paid.",
+            });
+        }
 
         return this.budgetItems.togglePaid(itemId, !item.paid);
+    }
+
+    async setDraft(budgetId: string, itemId: string, isDraft: boolean) {
+        const item = await this.budgetItems.findById(budgetId, itemId);
+        if (!item) throw new ORPCError("NOT_FOUND", { message: "Budget item not found" });
+        return this.budgetItems.setDraft(itemId, isDraft);
     }
 
     getMonthItems(budgetId: string, yearMonth: string) {

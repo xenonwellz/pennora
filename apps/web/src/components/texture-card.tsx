@@ -4,22 +4,18 @@ import { cn } from "@/lib/utils";
 type TextureCardProps = {
     children: ReactNode;
     className?: string;
-    /** Pass to enable a subtle background texture overlay */
+    /** @deprecated Photo textures removed — kept for call-site compat (ignored). */
     texture?: "card" | "card-2";
 };
 
-export function TextureCard({ children, className, texture }: TextureCardProps) {
-    const src = texture === "card-2" ? "/textures/card-2.jpg" : "/textures/card.png";
-
+/**
+ * Flat bordered surface (Divide UI).
+ * No elevation/shadows — hairline borders divide space.
+ */
+export function TextureCard({ children, className }: TextureCardProps) {
     return (
-        <div className={cn("relative rounded-xl border bg-card overflow-hidden", className)}>
-            {texture && (
-                <div
-                    className="pointer-events-none absolute inset-0 opacity-[0.015] bg-cover bg-center"
-                    style={{ backgroundImage: `url(${src})` }}
-                />
-            )}
-            <div className={texture ? "relative" : undefined}>{children}</div>
+        <div className={cn("relative overflow-hidden rounded-xl border border-border bg-card", className)}>
+            {children}
         </div>
     );
 }

@@ -92,6 +92,7 @@ export const monthlyRates = pgTable("monthly_rates", {
 
 // ─── Income Targets ─────────────────────────────────────────────────
 
+// Multiple income sources allowed per budget + month (salary, freelancing, etc.)
 export const incomeTargets = pgTable("income_targets", {
     id: text("id").primaryKey(),
     budgetId: text("budget_id").notNull().references(() => budgets.id, { onDelete: "cascade" }),
@@ -104,7 +105,7 @@ export const incomeTargets = pgTable("income_targets", {
     endsAtYearMonth: text("ends_at_year_month"),
     createdAt: timestamp("created_at").notNull().default(sql`now()`),
     updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-}, (t) => [unique().on(t.budgetId, t.yearMonth)]);
+});
 
 // ─── Income Entries ─────────────────────────────────────────────────
 
@@ -134,6 +135,8 @@ export const budgetItems = pgTable("budget_items", {
     endsAtYearMonth: text("ends_at_year_month"),
     paid: boolean("paid").notNull().default(false),
     paidAt: timestamp("paid_at"),
+    /** Draft items are planned later — excluded from totals until activated. */
+    isDraft: boolean("is_draft").notNull().default(false),
     createdAt: timestamp("created_at").notNull().default(sql`now()`),
     updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

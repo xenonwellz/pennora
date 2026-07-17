@@ -143,27 +143,43 @@ export class MonthService extends BaseService {
     }
 
     private async seedRecurringIncome(budgetId: string, yearMonth: string) {
-        const existing = await this.income.findTarget(budgetId, yearMonth);
-        if (existing) return 0;
+        const templates = await this.income.findRecurringTemplates(budgetId);
+        if (templates.length === 0) return 0;
 
-        const recurringTarget = await this.income.findRecurring(budgetId);
-        if (!recurringTarget) return 0;
+        const existing = await this.income.findTargets(budgetId, yearMonth);
+        const existingLabels = new Set(existing.map((t) => t.label ?? "Income"));
 
-        const monthsSinceStart = this.monthsBetween(recurringTarget.yearMonth, yearMonth);
-        if (monthsSinceStart < 0 || monthsSinceStart % recurringTarget.frequencyMonths !== 0) {
-            return 0;
+        let created = 0;
+        for (const template of templates) {
+            const label = template.label ?? "Income";
+            if (existingLabels.has(label)) continue;
+
+            if (
+                template.endsAtYearMonth &&
+                yearMonth > template.endsAtYearMonth
+            ) {
+                continue;
+            }
+
+            const monthsSinceStart = this.monthsBetween(template.yearMonth, yearMonth);
+            if (monthsSinceStart < 0 || monthsSinceStart % template.frequencyMonths !== 0) {
+                continue;
+            }
+
+            await this.income.createTarget(budgetId, {
+                yearMonth,
+                amount: template.amount,
+                currency: template.currency,
+                label: template.label ?? undefined,
+                isRecurring: true,
+                frequencyMonths: template.frequencyMonths,
+                endsAtYearMonth: template.endsAtYearMonth,
+            });
+            existingLabels.add(label);
+            created += 1;
         }
 
-        await this.income.upsertTarget(budgetId, {
-            yearMonth,
-            amount: recurringTarget.amount,
-            currency: recurringTarget.currency,
-            label: recurringTarget.label ?? undefined,
-            isRecurring: true,
-            frequencyMonths: recurringTarget.frequencyMonths,
-        });
-
-        return 1;
+        return created;
     }
 
     private monthsBetween(ym1: string, ym2: string): number {

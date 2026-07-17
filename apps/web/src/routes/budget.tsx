@@ -1,18 +1,20 @@
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
-import type { BudgetMonthStatus } from "@expense/shared";
+import { toNgn, type BudgetMonthStatus, type Currency } from "@expense/shared";
 import { orpc } from "../lib/clients/orpc";
 import {
     useBudgetItems,
-    useIncomeTarget,
+    useIncomeTargets,
     useTogglePaid,
+    useSetItemDraft,
     useAddBudgetItem,
     useUpdateBudgetItem,
     useDeleteBudgetItem,
     useCategories,
     useSetIncomeTarget,
     useUpdateIncomeTarget,
+    useDeleteIncomeTarget,
     useAddIncomeEntry,
     useDeleteIncomeEntry,
     useMonthStatus,
@@ -22,6 +24,7 @@ import {
     useRateForMonth,
     useUpsertRate,
     type BudgetItem,
+    type IncomeTargetSummary,
 } from "../lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +49,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { MonthPicker } from "@/components/month-picker";
 import { PanelCard, PanelCardContent, PanelCardHeader } from "@/components/panel-card";
+import { DivideFrame, DivideSectionLabel } from "@/components/divide-frame";
 import { CategoryDrilldownDialog } from "@/components/category-drilldown-dialog";
 import { currMonth, formatCurrency, formatNGN, monthLabel, prevMonth, computeRecurringEndOptions, cn } from "../lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -73,6 +77,7 @@ type UnifiedRow =
         amount: number;
         currency: string;
         paid: boolean;
+        isDraft: boolean;
         isRecurring: boolean;
         defaulted?: boolean;
     }
@@ -100,6 +105,10 @@ function formatAmount(amount: number, currency: string) {
     return formatCurrency(amount, currency);
 }
 
+function amountToNgn(amount: number, currency: string, usdBuyRate: number): number {
+    return toNgn(amount, currency as Currency, { usdBuyRate });
+}
+
 function buildUnifiedRows(
     items: {
         id: string;
@@ -107,24 +116,17 @@ function buildUnifiedRows(
         amount: number;
         currency: string;
         paid: boolean;
+        isDraft?: boolean;
         isRecurring: boolean;
         categoryId?: string | null;
         category?: { name: string } | null;
     }[] | undefined,
-    income: {
-        id: string;
-        amount: number;
-        currency: string;
-        label?: string | null;
-        isRecurring?: boolean | null;
-        totalReceived: number;
-        entries: { id: string; amount: number; currency: string }[];
-    } | null | undefined,
+    incomes: IncomeTargetSummary[] | undefined,
     isCompleted: boolean,
 ): UnifiedRow[] {
     const rows: UnifiedRow[] = [];
 
-    if (income) {
+    for (const income of incomes ?? []) {
         const source = income.label ?? "Income";
         rows.push({
             kind: "income-target",
@@ -139,10 +141,12 @@ function buildUnifiedRows(
         });
     }
 
-    const unpaid = items?.filter((i) => !i.paid) ?? [];
-    const paid = items?.filter((i) => i.paid) ?? [];
+    const active = items?.filter((i) => !i.isDraft) ?? [];
+    const drafts = items?.filter((i) => i.isDraft) ?? [];
+    const unpaid = active.filter((i) => !i.paid);
+    const paid = active.filter((i) => i.paid);
 
-    for (const item of [...unpaid, ...paid]) {
+    for (const item of [...unpaid, ...paid, ...drafts]) {
         rows.push({
             kind: "expense",
             id: item.id,
@@ -152,8 +156,9 @@ function buildUnifiedRows(
             amount: item.amount,
             currency: item.currency,
             paid: item.paid,
+            isDraft: item.isDraft ?? false,
             isRecurring: item.isRecurring,
-            defaulted: isCompleted && !item.paid,
+            defaulted: isCompleted && !item.paid && !item.isDraft,
         });
     }
 
@@ -197,33 +202,67 @@ const TYPE_FILTER_LABELS: Record<TypeFilter, string> = {
     expense: "Expense",
 };
 
+/** Shared chrome for joined control groups — rounded, flat, no shadow */
+const formGroupShell =
+    "flex w-full min-w-0 overflow-hidden rounded-xl border border-border bg-card";
+
 function TypeFilterBar({
     value,
     onChange,
     className,
+    /** When true, segments don’t grow (desktop). Default grows to fill row. */
+    compact = false,
 }: {
     value: TypeFilter;
     onChange: (value: TypeFilter) => void;
     className?: string;
+    compact?: boolean;
 }) {
     return (
-        <div className={cn("flex rounded-xl border border-border bg-muted/30 p-1", className)}>
-            {(Object.keys(TYPE_FILTER_LABELS) as TypeFilter[]).map((filter) => (
+        <div
+            className={cn(
+                "flex min-w-0 p-0",
+                compact ? "w-auto shrink-0" : "w-full flex-1",
+                className,
+            )}
+            role="tablist"
+            aria-label="Item type"
+        >
+            {(Object.keys(TYPE_FILTER_LABELS) as TypeFilter[]).map((filter, i) => (
                 <button
                     key={filter}
                     type="button"
+                    role="tab"
+                    aria-selected={value === filter}
                     onClick={() => onChange(filter)}
                     className={cn(
-                        "flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
+                        "h-11 text-sm font-medium transition-colors whitespace-nowrap",
+                        compact ? "px-4" : "flex-1 min-w-0 px-2",
+                        i > 0 && "border-l border-border",
                         value === filter
-                            ? "bg-card text-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground",
+                            ? "bg-muted text-foreground"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                     )}
                 >
                     {TYPE_FILTER_LABELS[filter]}
                 </button>
             ))}
         </div>
+    );
+}
+
+function StatusBadge({ status }: { status: BudgetMonthStatus }) {
+    return (
+        <span
+            className={cn(
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0",
+                status === "completed" && "bg-success/15 text-success",
+                status === "planning" && "bg-primary/10 text-primary",
+                status === "uninitialized" && "bg-muted text-muted-foreground",
+            )}
+        >
+            {STATUS_LABELS[status]}
+        </span>
     );
 }
 
@@ -252,6 +291,7 @@ function BudgetPage() {
         frequencyMonths: number;
         endsAtYearMonth: string | null;
     } | null>(null);
+    const [editIncome, setEditIncome] = useState<IncomeTargetSummary | null>(null);
     const [categoryDrilldown, setCategoryDrilldown] = useState<{
         categoryId: string | null;
         categoryName: string;
@@ -265,23 +305,26 @@ function BudgetPage() {
     const isReadOnly = !isPlanning;
 
     const { data: items, isLoading } = useBudgetItems(yearMonth, isMonthStarted);
-    const { data: income } = useIncomeTarget(yearMonth, isMonthStarted);
+    const { data: incomes } = useIncomeTargets(yearMonth, isMonthStarted);
     const { data: categories } = useCategories();
     const { data: analysis } = useMonthAnalysis(yearMonth, isCompleted);
-    const { data: rate } = useRateForMonth(yearMonth, isPlanning);
+    // Need rates whenever month is started so summary can convert USD→NGN
+    const { data: rate } = useRateForMonth(yearMonth, isMonthStarted);
 
     const startPlan = useStartPlan();
     const completeMonth = useCompleteMonth();
     const queryClient = useQueryClient();
     const togglePaid = useTogglePaid();
+    const setItemDraft = useSetItemDraft();
     const deleteItem = useDeleteBudgetItem();
     const deleteIncomeEntry = useDeleteIncomeEntry();
+    const deleteIncomeTarget = useDeleteIncomeTarget();
     const addIncomeEntry = useAddIncomeEntry();
     const upsertRate = useUpsertRate();
 
     const allRows = useMemo(
-        () => buildUnifiedRows(items, income, isCompleted),
-        [items, income, isCompleted],
+        () => buildUnifiedRows(items, incomes, isCompleted),
+        [items, incomes, isCompleted],
     );
     const visibleRows = useMemo(
         () => filterRows(allRows, typeFilter),
@@ -334,7 +377,14 @@ function BudgetPage() {
     };
 
     const handleAddExpense = () => setShowAdd(true);
-    const handleAddIncome = () => setShowIncome(true);
+    const handleAddIncome = () => {
+        setEditIncome(null);
+        setShowIncome(true);
+    };
+    const handleEditIncome = (target: IncomeTargetSummary) => {
+        setEditIncome(target);
+        setShowIncome(true);
+    };
 
     const handleToggleIncome = (incomeId: string, isReceived: boolean, amount: number, currency: "NGN" | "USD", received: number) => {
         if (isReceived) {
@@ -348,132 +398,147 @@ function BudgetPage() {
                 });
             }
         } else {
-            if (income?.entries) {
-                for (const entry of income.entries) {
+            const target = incomes?.find((t) => t.id === incomeId);
+            if (target?.entries) {
+                for (const entry of target.entries) {
                     deleteIncomeEntry.mutate(entry.id);
                 }
             }
         }
     };
 
+    const monthMenu = isPlanning ? (
+        <DropdownMenu>
+            <DropdownMenuTrigger
+                render={
+                    <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="h-11 w-11 shrink-0 rounded-none border-0 shadow-none"
+                        aria-label="Month options"
+                    >
+                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="size-4" />
+                    </Button>
+                }
+            />
+            <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => setShowRates(true)}>
+                    <HugeiconsIcon icon={Coins02Icon} strokeWidth={2} className="size-4" />
+                    {rate ? "Update rates" : "Set rates"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowCompleteConfirm(true)}>
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} className="size-4" />
+                    Mark complete
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    ) : null;
+
+    const addControl = !isReadOnly ? (
+        typeFilter === "expense" ? (
+            <Button
+                size="sm"
+                onClick={handleAddExpense}
+                className="h-11 shrink-0 rounded-none border-0 shadow-none px-3.5"
+            >
+                <HugeiconsIcon icon={AddCircleIcon} strokeWidth={2} className="size-4" />
+                <span className="sm:inline">Add</span>
+            </Button>
+        ) : typeFilter === "income" ? (
+            <Button
+                size="sm"
+                onClick={handleAddIncome}
+                className="h-11 shrink-0 rounded-none border-0 shadow-none px-3.5"
+            >
+                <HugeiconsIcon icon={MoneyAdd01Icon} strokeWidth={2} className="size-4" />
+                <span className="sm:inline">Add</span>
+            </Button>
+        ) : (
+            <DropdownMenu>
+                <DropdownMenuTrigger
+                    render={
+                        <Button
+                            size="sm"
+                            className="h-11 shrink-0 rounded-none border-0 shadow-none px-3.5"
+                        >
+                            <HugeiconsIcon icon={AddCircleIcon} strokeWidth={2} className="size-4" />
+                            Add
+                        </Button>
+                    }
+                />
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleAddExpense}>
+                        <HugeiconsIcon icon={Coins02Icon} strokeWidth={2} className="size-4" />
+                        Expense
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleAddIncome}>
+                        <HugeiconsIcon icon={MoneyAdd01Icon} strokeWidth={2} className="size-4" />
+                        Income
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        )
+    ) : null;
+
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex flex-col gap-2.5 min-w-0 w-full sm:w-auto">
-                    <div className="flex items-center gap-2">
+        <div className="space-y-5 sm:space-y-6">
+            {/* Two rows max: month · filter+add — no separate Actions bar */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+                {/* Month + status + ⋯ */}
+                <div className={cn(formGroupShell, "items-stretch min-w-0 sm:max-w-sm sm:flex-none")}>
+                    <div className="min-w-0 flex-1 sm:min-w-[10rem]">
                         <MonthPicker
                             value={yearMonth}
                             onChange={(m) => navigate({ search: { ym: m } })}
+                            className="h-11 w-full rounded-none border-0 bg-transparent shadow-none hover:bg-muted/50 justify-start px-3"
                         />
-                        {status !== "uninitialized" && (
-                            <Select
-                                value={typeFilter}
-                                onValueChange={(v) => setTypeFilter(v as TypeFilter)}
-                            >
-                                <SelectTrigger className="hidden sm:flex w-fit rounded-lg border-transparent bg-transparent shadow-none hover:bg-muted/50">
-                                    <SelectValue>{TYPE_FILTER_LABELS[typeFilter]}</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {(Object.keys(TYPE_FILTER_LABELS) as TypeFilter[]).map((filter) => (
-                                        <SelectItem key={filter} value={filter}>
-                                            {TYPE_FILTER_LABELS[filter]}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                    </div>
+                    <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
+                    <div className="flex items-center shrink-0">
+                        <div className="flex items-center px-2.5 sm:px-3">
+                            <StatusBadge status={status} />
+                        </div>
+                        {monthMenu && (
+                            <>
+                                <div className="w-px self-stretch bg-border" aria-hidden />
+                                {monthMenu}
+                            </>
                         )}
                     </div>
-                    {status !== "uninitialized" && (
+                </div>
+
+                {status === "uninitialized" && (
+                    <Button
+                        size="sm"
+                        onClick={handleStartPlan}
+                        disabled={startPlan.isPending}
+                        className="w-full sm:w-auto sm:ml-auto"
+                    >
+                        Start plan
+                    </Button>
+                )}
+
+                {/* Filter + Add — one group (no separate Actions bar) */}
+                {status !== "uninitialized" && (
+                    <div
+                        className={cn(
+                            formGroupShell,
+                            "items-stretch sm:ml-auto sm:w-auto",
+                        )}
+                    >
                         <TypeFilterBar
                             value={typeFilter}
                             onChange={setTypeFilter}
-                            className="sm:hidden"
+                            className="min-w-0"
                         />
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                        <span
-                            className={
-                                status === "completed"
-                                    ? "text-success"
-                                    : status === "planning"
-                                        ? "text-primary"
-                                        : ""
-                            }
-                        >
-                            {STATUS_LABELS[status]}
-                        </span>
-                        {" · "}
-                        {monthLabel(yearMonth)}
-                    </p>
-                </div>
-                <div className="flex gap-2 items-stretch w-full sm:w-auto sm:shrink-0">
-                    {status === "uninitialized" && (
-                        <Button size="sm" onClick={handleStartPlan} disabled={startPlan.isPending} className="flex-1 sm:flex-none">
-                            Start plan
-                        </Button>
-                    )}
-                    {isPlanning && (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger
-                                render={
-                                    <Button size="sm" variant="outline" className="flex-1 sm:flex-none">
-                                        <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} className="size-4" />
-                                        Actions
-                                    </Button>
-                                }
-                            />
-                            <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuGroup>
-                                    <DropdownMenuLabel>Month actions</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setShowRates(true)}>
-                                        <HugeiconsIcon icon={Coins02Icon} strokeWidth={2} className="size-4" />
-                                        {rate ? "Update rates" : "Set rates"}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setShowCompleteConfirm(true)}>
-                                        <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} className="size-4" />
-                                        Mark complete
-                                    </DropdownMenuItem>
-                                </DropdownMenuGroup>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    )}
-                    {!isReadOnly && (
-                        typeFilter === "expense" ? (
-                            <Button size="sm" onClick={handleAddExpense} className="flex-1 sm:flex-none">
-                                <HugeiconsIcon icon={AddCircleIcon} strokeWidth={2} className="size-4" />
-                                Add expense
-                            </Button>
-                        ) : typeFilter === "income" ? (
-                            <Button size="sm" onClick={handleAddIncome} className="flex-1 sm:flex-none">
-                                <HugeiconsIcon icon={MoneyAdd01Icon} strokeWidth={2} className="size-4" />
-                                {income ? "Edit income" : "Set income"}
-                            </Button>
-                        ) : (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger
-                                    render={
-                                        <Button size="sm" className="flex-1 sm:flex-none">
-                                            <HugeiconsIcon icon={AddCircleIcon} strokeWidth={2} className="size-4" />
-                                            Add
-                                            <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3.5 opacity-60" />
-                                        </Button>
-                                    }
-                                />
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={handleAddExpense}>
-                                        <HugeiconsIcon icon={Coins02Icon} strokeWidth={2} className="size-4" />
-                                        Add expense
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={handleAddIncome}>
-                                        <HugeiconsIcon icon={MoneyAdd01Icon} strokeWidth={2} className="size-4" />
-                                        {income ? "Edit income" : "Set income"}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )
-                    )}
-                </div>
+                        {addControl && (
+                            <>
+                                <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />
+                                {addControl}
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
 
             {status === "uninitialized" && (
@@ -504,17 +569,27 @@ function BudgetPage() {
 
                     {!isLoading && (
                         <>
-                            {typeFilter !== "expense" && (income || (items && items.length > 0)) && (
-                                <BudgetSummary
-                                    income={income}
-                                    items={items}
-                                />
-                            )}
+                            {/* One divide frame: summary + mobile list (no stacked cards) */}
+                            <DivideFrame className="divide-y divide-border">
+                                {typeFilter !== "expense" &&
+                                    ((incomes && incomes.length > 0) || (items && items.length > 0)) && (
+                                        <BudgetSummary
+                                            incomes={incomes}
+                                            items={items}
+                                            usdBuyRate={rate?.usdBuyRate ?? 1}
+                                        />
+                                    )}
 
-                            <div className="border-t border-border pt-6 mt-6">
                                 {visibleRows.length > 0 && (
                                     <>
-                                        <div className="space-y-2 sm:hidden">
+                                        <DivideSectionLabel className="sm:hidden">
+                                            {typeFilter === "income"
+                                                ? "Income"
+                                                : typeFilter === "expense"
+                                                    ? "Expenses"
+                                                    : "Items"}
+                                        </DivideSectionLabel>
+                                        <div className="divide-y divide-border sm:hidden">
                                             {visibleRows.map((row) => (
                                                 <UnifiedBudgetCard
                                                     key={`${row.kind}-${row.id}`}
@@ -534,7 +609,20 @@ function BudgetPage() {
                                                     }}
                                                     onDeleteExpense={() => deleteItem.mutate(row.id)}
                                                     onDeleteIncomeEntry={() => deleteIncomeEntry.mutate(row.id)}
-                                                    onEditIncome={() => setShowIncome(true)}
+                                                    onDeleteIncome={() => {
+                                                        if (row.kind === "income-target") {
+                                                            deleteIncomeTarget.mutate(row.id);
+                                                        }
+                                                    }}
+                                                    onEditIncome={() => {
+                                                        if (row.kind === "income-target") {
+                                                            const target = incomes?.find((t) => t.id === row.id);
+                                                            if (target) handleEditIncome(target);
+                                                        }
+                                                    }}
+                                                    onSetDraft={(isDraft) =>
+                                                        setItemDraft.mutate({ id: row.id, isDraft })
+                                                    }
                                                     onCategoryClick={(cat) => setCategoryDrilldown(cat)}
                                                     onEditExpense={() => {
                                                         const item = items?.find((i) => i.id === row.id);
@@ -554,8 +642,11 @@ function BudgetPage() {
                                                 />
                                             ))}
                                         </div>
+                                    </>
+                                )}
 
-                                        <div className="hidden sm:block">
+                                {visibleRows.length > 0 && (
+                                    <div className="hidden sm:block">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow className="hover:bg-transparent">
@@ -588,7 +679,18 @@ function BudgetPage() {
                                                             }}
                                                             onDeleteExpense={() => deleteItem.mutate(row.id)}
                                                             onDeleteIncomeEntry={() => deleteIncomeEntry.mutate(row.id)}
-                                                            onEditIncome={() => setShowIncome(true)}
+                                                            onDeleteIncome={() => {
+                                                                if (row.kind === "income-target") {
+                                                                    deleteIncomeTarget.mutate(row.id);
+                                                                }
+                                                            }}
+                                                            onEditIncome={() => {
+                                                                if (row.kind === "income-target") {
+                                                                    const target = incomes?.find((t) => t.id === row.id);
+                                                                    if (target) handleEditIncome(target);
+                                                                }
+                                                            }}
+                                                            onSetDraft={(isDraft) => setItemDraft.mutate({ id: row.id, isDraft })}
                                                             onCategoryClick={(cat) => setCategoryDrilldown(cat)}
                                                             onEditExpense={() => {
                                                                 const item = items?.find((i) => i.id === row.id);
@@ -609,12 +711,11 @@ function BudgetPage() {
                                                     ))}
                                                 </TableBody>
                                             </Table>
-                                        </div>
-                                    </>
+                                    </div>
                                 )}
 
                                 {visibleRows.length === 0 && isPlanning && (
-                                    <div className="flex flex-col items-center py-6 text-center">
+                                    <div className="flex flex-col items-center py-8 px-4 text-center">
                                         <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                                             <HugeiconsIcon
                                                 icon={typeFilter === "income" ? MoneyAdd01Icon : Coins02Icon}
@@ -631,7 +732,7 @@ function BudgetPage() {
                                         </p>
                                         <p className="text-xs text-muted-foreground mb-4">
                                             {typeFilter === "income"
-                                                ? "Set an income target or add a payment."
+                                                ? "Add one or more income sources (salary, freelance, etc.)."
                                                 : "Add expenses and income to plan this month."}
                                         </p>
                                         {!isReadOnly && (
@@ -645,15 +746,14 @@ function BudgetPage() {
                                                 {typeFilter !== "expense" && (
                                                     <Button size="sm" variant="outline" onClick={handleAddIncome}>
                                                         <HugeiconsIcon icon={MoneyAdd01Icon} strokeWidth={2} className="size-4" />
-                                                        {income ? "Edit income" : "Set income"}
+                                                        Add income
                                                     </Button>
                                                 )}
                                             </div>
                                         )}
                                     </div>
                                 )}
-                            </div>
-
+                            </DivideFrame>
                         </>
                     )}
                 </>
@@ -734,14 +834,23 @@ function BudgetPage() {
                 </DialogPanelContent>
             </Dialog>
 
-            <Dialog open={showIncome} onOpenChange={setShowIncome}>
+            <Dialog
+                open={showIncome}
+                onOpenChange={(open) => {
+                    setShowIncome(open);
+                    if (!open) setEditIncome(null);
+                }}
+            >
                 <DialogPanelContent>
-                    <DialogPanelHeader title={income ? "Edit Income" : "Set Income Target"} />
+                    <DialogPanelHeader title={editIncome ? "Edit Income" : "Add Income"} />
                     <DialogPanelBody>
                         <IncomeForm
                             yearMonth={yearMonth}
-                            income={income}
-                            onDone={() => setShowIncome(false)}
+                            income={editIncome}
+                            onDone={() => {
+                                setShowIncome(false);
+                                setEditIncome(null);
+                            }}
                         />
                     </DialogPanelBody>
                 </DialogPanelContent>
@@ -797,105 +906,144 @@ function BudgetPage() {
 }
 
 function BudgetSummary({
-    income,
+    incomes,
     items,
+    usdBuyRate,
 }: {
-    income: {
-        amount: number;
-        currency: string;
-        totalReceived: number;
-    } | null | undefined;
+    incomes: IncomeTargetSummary[] | undefined;
     items: {
         amount: number;
         currency: string;
         paid: boolean;
+        isDraft?: boolean;
     }[] | undefined;
+    usdBuyRate: number;
 }) {
-    const totalExpenses = items?.reduce((sum, i) => sum + i.amount, 0) ?? 0;
-    const paidExpenses = items?.filter((i) => i.paid).reduce((sum, i) => sum + i.amount, 0) ?? 0;
+    // Always normalize to NGN so mixed USD/NGN lines sum correctly
+    const activeItems = items?.filter((i) => !i.isDraft) ?? [];
+    const totalExpenses = activeItems.reduce(
+        (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
+        0,
+    );
+    const paidExpenses = activeItems
+        .filter((i) => i.paid)
+        .reduce((sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate), 0);
     const unpaidExpenses = totalExpenses - paidExpenses;
-    const incomeAmount = income?.amount ?? 0;
-    const incomeReceived = income?.totalReceived ?? 0;
-    const currency = income?.currency ?? "NGN";
-    const remaining = incomeReceived - totalExpenses;
 
-    const hasData = incomeAmount > 0 || totalExpenses > 0;
+    const incomeAmount = (incomes ?? []).reduce(
+        (sum, t) => sum + amountToNgn(t.amount, t.currency, usdBuyRate),
+        0,
+    );
+    const incomeReceived = (incomes ?? []).reduce((sum, t) => {
+        const fromEntries = t.entries.reduce(
+            (s, e) => s + amountToNgn(e.amount, e.currency, usdBuyRate),
+            0,
+        );
+        // Prefer entry-level conversion; fall back to raw total if no entries
+        return sum + (t.entries.length > 0 ? fromEntries : amountToNgn(t.totalReceived, t.currency, usdBuyRate));
+    }, 0);
+
+    const remaining = incomeReceived - totalExpenses;
+    const draftCount = items?.filter((i) => i.isDraft).length ?? 0;
+
+    const hasData = incomeAmount > 0 || totalExpenses > 0 || draftCount > 0;
     if (!hasData) return null;
 
     return (
-        <PanelCard>
-            <PanelCardContent className="space-y-5">
-                <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                            <div className="size-2 rounded-full bg-success" />
-                            <span className="text-xs font-medium text-muted-foreground">Income</span>
-                        </div>
-                        <p className="font-mono text-lg font-semibold text-success">
-                            {formatAmount(incomeReceived, currency)}
+        <div className="divide-y divide-border">
+            <div className="grid grid-cols-2 divide-x divide-border">
+                <div className="px-4 py-3.5 space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Income
+                    </p>
+                    <p className="font-mono text-lg font-semibold text-success leading-tight">
+                        {formatNGN(incomeReceived)}
+                    </p>
+                    {incomeAmount > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            of {formatNGN(incomeAmount)} target
+                            {(incomes?.length ?? 0) > 1 ? ` · ${incomes!.length} sources` : ""}
                         </p>
-                        {incomeAmount > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                                of {formatAmount(incomeAmount, currency)} target
-                            </p>
-                        )}
-                    </div>
-                    <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                            <div className="size-2 rounded-full bg-expense" />
-                            <span className="text-xs font-medium text-muted-foreground">Expenses</span>
-                        </div>
-                        <p className="font-mono text-lg font-semibold text-expense">
-                            {formatAmount(totalExpenses, currency)}
-                        </p>
-                        {unpaidExpenses > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                                {formatAmount(unpaidExpenses, currency)} unpaid
-                            </p>
-                        )}
-                    </div>
+                    )}
                 </div>
+                <div className="px-4 py-3.5 space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Expenses
+                    </p>
+                    <p className="font-mono text-lg font-semibold text-expense leading-tight">
+                        {formatNGN(totalExpenses)}
+                    </p>
+                    {unpaidExpenses > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            {formatNGN(unpaidExpenses)} unpaid
+                        </p>
+                    )}
+                    {draftCount > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                            {draftCount} draft{draftCount === 1 ? "" : "s"} excluded
+                        </p>
+                    )}
+                </div>
+            </div>
 
-                {incomeAmount > 0 && (
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Income received</span>
-                            <span>{Math.min(100, Math.round((incomeReceived / incomeAmount) * 100))}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                            <div
-                                className="h-full rounded-full bg-success transition-all duration-500"
-                                style={{ width: `${Math.min(100, (incomeReceived / incomeAmount) * 100)}%` }}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {totalExpenses > 0 && (
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Expenses paid</span>
-                            <span>{totalExpenses > 0 ? Math.round((paidExpenses / totalExpenses) * 100) : 0}%</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-muted overflow-hidden">
-                            <div
-                                className="h-full rounded-full bg-expense transition-all duration-500"
-                                style={{ width: `${totalExpenses > 0 ? (paidExpenses / totalExpenses) * 100 : 0}%` }}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {incomeAmount > 0 && totalExpenses > 0 && (
-                    <div className={`flex items-center justify-between rounded-lg px-4 py-3 ${remaining >= 0 ? "bg-success/10" : "bg-expense/10"}`}>
-                        <span className="text-sm font-medium">Remaining</span>
-                        <span className={`font-mono text-sm font-semibold ${remaining >= 0 ? "text-success" : "text-expense"}`}>
-                            {remaining >= 0 ? "+" : ""}{formatAmount(remaining, currency)}
+            {incomeAmount > 0 && (
+                <div className="px-4 py-3 space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Income received</span>
+                        <span className="tabular-nums">
+                            {Math.min(100, Math.round((incomeReceived / incomeAmount) * 100))}%
                         </span>
                     </div>
-                )}
-            </PanelCardContent>
-        </PanelCard>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                            className="h-full rounded-full bg-success transition-all duration-500"
+                            style={{
+                                width: `${Math.min(100, (incomeReceived / incomeAmount) * 100)}%`,
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {totalExpenses > 0 && (
+                <div className="px-4 py-3 space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Expenses paid</span>
+                        <span className="tabular-nums">
+                            {Math.round((paidExpenses / totalExpenses) * 100)}%
+                        </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                            className="h-full rounded-full bg-expense transition-all duration-500"
+                            style={{
+                                width: `${(paidExpenses / totalExpenses) * 100}%`,
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {incomeAmount > 0 && totalExpenses > 0 && (
+                <div
+                    className={cn(
+                        "flex items-center justify-between px-4 py-3",
+                        remaining >= 0 ? "bg-success/5" : "bg-expense/5",
+                    )}
+                >
+                    <span className="text-sm font-medium">Remaining</span>
+                    <span
+                        className={cn(
+                            "font-mono text-sm font-semibold tabular-nums",
+                            remaining >= 0 ? "text-success" : "text-expense",
+                        )}
+                    >
+                        {remaining >= 0 ? "+" : ""}
+                        {formatNGN(remaining)}
+                    </span>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -1065,8 +1213,9 @@ function CategoryBadge({
 function getUnifiedRowMeta(row: UnifiedRow) {
     const isExpense = row.kind === "expense";
     const isIncome = row.kind !== "expense";
-    const paid = isExpense && row.paid;
-    const defaulted = isExpense && row.defaulted && !row.paid;
+    const isDraft = isExpense && row.isDraft;
+    const paid = isExpense && row.paid && !row.isDraft;
+    const defaulted = isExpense && row.defaulted && !row.paid && !row.isDraft;
 
     const typeLabel = isExpense ? "Expense" : "Income";
     const categoryOrSource = isExpense ? row.category : row.source;
@@ -1074,7 +1223,10 @@ function getUnifiedRowMeta(row: UnifiedRow) {
     let statusLabel: string;
     let statusClass: string;
     if (row.kind === "expense") {
-        if (row.defaulted && !row.paid) {
+        if (row.isDraft) {
+            statusLabel = "Draft";
+            statusClass = "text-muted-foreground";
+        } else if (row.defaulted && !row.paid) {
             statusLabel = "Defaulted";
             statusClass = "text-[var(--color-warning)]";
         } else if (row.paid) {
@@ -1096,15 +1248,18 @@ function getUnifiedRowMeta(row: UnifiedRow) {
     const isRecurring =
         (isExpense && row.isRecurring) || (row.kind === "income-target" && row.isRecurring);
 
-    const rowBg = defaulted
-        ? "bg-[var(--color-warning)]/5"
-        : isFullyReceived
-            ? "bg-[var(--color-success)]/5"
-            : "";
+    const rowBg = isDraft
+        ? "bg-muted/40"
+        : defaulted
+            ? "bg-[var(--color-warning)]/5"
+            : isFullyReceived
+                ? "bg-[var(--color-success)]/5"
+                : "";
 
     return {
         isExpense,
         isIncome,
+        isDraft,
         paid,
         defaulted,
         typeLabel,
@@ -1124,8 +1279,10 @@ type UnifiedBudgetRowProps = {
     onToggleIncome: () => void;
     onDeleteExpense: () => void;
     onDeleteIncomeEntry: () => void;
+    onDeleteIncome: () => void;
     onEditIncome: () => void;
     onEditExpense: () => void;
+    onSetDraft: (isDraft: boolean) => void;
     onCategoryClick: (cat: { categoryId: string | null; categoryName: string }) => void;
 };
 
@@ -1135,9 +1292,17 @@ function BudgetRowCheckbox({
     onTogglePaid,
     onToggleIncome,
 }: Pick<UnifiedBudgetRowProps, "row" | "readOnly" | "onTogglePaid" | "onToggleIncome">) {
-    const { isExpense, isIncome } = getUnifiedRowMeta(row);
+    const { isExpense, isIncome, isDraft } = getUnifiedRowMeta(row);
 
     if (isExpense) {
+        if (isDraft) {
+            return (
+                <div
+                    className="size-5 rounded border border-dashed border-muted-foreground/40"
+                    title="Draft — activate to track"
+                />
+            );
+        }
         return !readOnly ? (
             <Checkbox
                 checked={row.kind === "expense" && row.paid}
@@ -1169,12 +1334,21 @@ function BudgetRowActions({
     readOnly,
     onDeleteExpense,
     onDeleteIncomeEntry,
+    onDeleteIncome,
     onEditIncome,
     onEditExpense,
+    onSetDraft,
     mobile = false,
 }: Pick<
     UnifiedBudgetRowProps,
-    "row" | "readOnly" | "onDeleteExpense" | "onDeleteIncomeEntry" | "onEditIncome" | "onEditExpense"
+    | "row"
+    | "readOnly"
+    | "onDeleteExpense"
+    | "onDeleteIncomeEntry"
+    | "onDeleteIncome"
+    | "onEditIncome"
+    | "onEditExpense"
+    | "onSetDraft"
 > & { mobile?: boolean }) {
     if (readOnly) return null;
 
@@ -1187,12 +1361,22 @@ function BudgetRowActions({
             {row.kind === "expense" && (
                 <>
                     <button
+                        type="button"
+                        onClick={() => onSetDraft(!row.isDraft)}
+                        className={`${actionBtn} hover:text-foreground hover:bg-muted text-[10px] font-medium px-1.5 w-auto`}
+                        title={row.isDraft ? "Activate expense" : "Move to draft"}
+                    >
+                        {row.isDraft ? "Activate" : "Draft"}
+                    </button>
+                    <button
+                        type="button"
                         onClick={onEditExpense}
                         className={`${actionBtn} hover:text-foreground hover:bg-muted`}
                     >
                         <HugeiconsIcon icon={Edit02Icon} strokeWidth={2} className="size-4" />
                     </button>
                     <button
+                        type="button"
                         onClick={onDeleteExpense}
                         className={`${actionBtn} hover:text-destructive hover:bg-destructive/10`}
                     >
@@ -1202,6 +1386,7 @@ function BudgetRowActions({
             )}
             {row.kind === "income-entry" && (
                 <button
+                    type="button"
                     onClick={onDeleteIncomeEntry}
                     className={`${actionBtn} hover:text-destructive hover:bg-destructive/10`}
                 >
@@ -1209,17 +1394,29 @@ function BudgetRowActions({
                 </button>
             )}
             {row.kind === "income-target" && (
-                <button
-                    onClick={onEditIncome}
-                    className={`${actionBtn} hover:text-foreground hover:bg-muted text-xs font-medium px-2 w-auto`}
-                >
-                    Edit
-                </button>
+                <>
+                    <button
+                        type="button"
+                        onClick={onEditIncome}
+                        className={`${actionBtn} hover:text-foreground hover:bg-muted text-xs font-medium px-2 w-auto`}
+                    >
+                        Edit
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onDeleteIncome}
+                        className={`${actionBtn} hover:text-destructive hover:bg-destructive/10`}
+                        title="Delete income source"
+                    >
+                        <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} className="size-4" />
+                    </button>
+                </>
             )}
         </>
     );
 }
 
+/** Mobile list row — flat cell for divide-y lists (not a floating card). */
 function UnifiedBudgetCard({
     row,
     readOnly,
@@ -1227,15 +1424,22 @@ function UnifiedBudgetCard({
     onToggleIncome,
     onDeleteExpense,
     onDeleteIncomeEntry,
+    onDeleteIncome,
     onEditIncome,
     onEditExpense,
+    onSetDraft,
     onCategoryClick,
 }: UnifiedBudgetRowProps) {
     const meta = getUnifiedRowMeta(row);
 
     return (
         <div
-            className={`rounded-xl border border-border bg-card p-4 transition-colors ${meta.rowBg} ${meta.paid ? "opacity-75" : ""}`}
+            className={cn(
+                "px-4 py-3.5 transition-colors",
+                meta.rowBg,
+                meta.paid && "opacity-75",
+                meta.isDraft && "opacity-80",
+            )}
         >
             <div className="flex items-start gap-3">
                 <div className="pt-0.5 shrink-0">
@@ -1251,46 +1455,71 @@ function UnifiedBudgetCard({
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                                <span className={`font-medium truncate ${meta.paid ? "line-through" : ""}`}>
+                                <span className={cn("font-medium truncate", meta.paid && "line-through")}>
                                     {row.name}
                                 </span>
                                 {meta.isRecurring && (
-                                    <HugeiconsIcon icon={RepeatIcon} strokeWidth={2} className="size-3.5 text-primary shrink-0" />
+                                    <HugeiconsIcon
+                                        icon={RepeatIcon}
+                                        strokeWidth={2}
+                                        className="size-3.5 text-primary shrink-0"
+                                    />
                                 )}
                             </div>
                             <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                <span className={`text-xs font-medium ${meta.isIncome ? "text-success" : "text-muted-foreground"}`}>
+                                <span
+                                    className={cn(
+                                        "text-xs font-medium",
+                                        meta.isIncome ? "text-success" : "text-muted-foreground",
+                                    )}
+                                >
                                     {meta.typeLabel}
                                 </span>
                                 <span className="text-xs text-muted-foreground">·</span>
                                 {meta.isExpense && row.kind === "expense" ? (
                                     <CategoryBadge
                                         categoryName={row.category}
-                                        onClick={() => onCategoryClick({ categoryId: row.categoryId, categoryName: row.category })}
+                                        onClick={() =>
+                                            onCategoryClick({
+                                                categoryId: row.categoryId,
+                                                categoryName: row.category,
+                                            })
+                                        }
                                     />
                                 ) : (
-                                    <span className="text-xs text-muted-foreground truncate">{meta.categoryOrSource}</span>
+                                    <span className="text-xs text-muted-foreground truncate">
+                                        {meta.categoryOrSource}
+                                    </span>
                                 )}
+                                <span className="text-xs text-muted-foreground">·</span>
+                                <span className={cn("text-xs font-medium", meta.statusClass)}>
+                                    {meta.statusLabel}
+                                </span>
                             </div>
                         </div>
 
-                        <span className={`font-mono text-sm font-semibold shrink-0 tabular-nums ${meta.isIncome ? "text-success" : ""}`}>
-                            {formatAmount(row.amount, row.currency)}
-                        </span>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/60">
-                        <span className={`text-xs font-medium ${meta.statusClass}`}>{meta.statusLabel}</span>
-                        <div className="flex items-center gap-0.5">
-                            <BudgetRowActions
-                                row={row}
-                                readOnly={readOnly}
-                                onDeleteExpense={onDeleteExpense}
-                                onDeleteIncomeEntry={onDeleteIncomeEntry}
-                                onEditIncome={onEditIncome}
-                                onEditExpense={onEditExpense}
-                                mobile
-                            />
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span
+                                className={cn(
+                                    "font-mono text-sm font-semibold tabular-nums",
+                                    meta.isIncome && "text-success",
+                                )}
+                            >
+                                {formatAmount(row.amount, row.currency)}
+                            </span>
+                            <div className="flex items-center gap-0.5">
+                                <BudgetRowActions
+                                    row={row}
+                                    readOnly={readOnly}
+                                    onDeleteExpense={onDeleteExpense}
+                                    onDeleteIncomeEntry={onDeleteIncomeEntry}
+                                    onDeleteIncome={onDeleteIncome}
+                                    onEditIncome={onEditIncome}
+                                    onEditExpense={onEditExpense}
+                                    onSetDraft={onSetDraft}
+                                    mobile
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1306,14 +1535,16 @@ function UnifiedBudgetRow({
     onToggleIncome,
     onDeleteExpense,
     onDeleteIncomeEntry,
+    onDeleteIncome,
     onEditIncome,
     onEditExpense,
+    onSetDraft,
     onCategoryClick,
 }: UnifiedBudgetRowProps) {
     const meta = getUnifiedRowMeta(row);
 
     return (
-        <TableRow className={`group ${meta.paid ? "opacity-60" : ""} ${meta.rowBg}`}>
+        <TableRow className={`group ${meta.paid ? "opacity-60" : ""} ${meta.rowBg} ${meta.isDraft ? "opacity-80" : ""}`}>
             <TableCell className="w-12">
                 <div className="flex items-center">
                     <BudgetRowCheckbox
@@ -1364,8 +1595,10 @@ function UnifiedBudgetRow({
                         readOnly={readOnly}
                         onDeleteExpense={onDeleteExpense}
                         onDeleteIncomeEntry={onDeleteIncomeEntry}
+                        onDeleteIncome={onDeleteIncome}
                         onEditIncome={onEditIncome}
                         onEditExpense={onEditExpense}
+                        onSetDraft={onSetDraft}
                     />
                 </div>
             </TableCell>
@@ -1586,16 +1819,7 @@ function IncomeForm({
     onDone,
 }: {
     yearMonth: string;
-    income: {
-        id: string;
-        amount: number;
-        currency: string;
-        label?: string | null;
-        isRecurring?: boolean | null;
-        frequencyMonths?: number | null;
-        endsAtYearMonth?: string | null;
-        entries: { id: string; amount: number; currency: string }[];
-    } | null | undefined;
+    income: IncomeTargetSummary | null | undefined;
     onDone: () => void;
 }) {
     const [targetName, setTargetName] = useState(income?.label ?? "");
@@ -1607,6 +1831,17 @@ function IncomeForm({
     const [updateBase, setUpdateBase] = useState(false);
     const setTarget = useSetIncomeTarget();
     const updateTarget = useUpdateIncomeTarget();
+
+    // Reset form when switching between add / edit target
+    useEffect(() => {
+        setTargetName(income?.label ?? "");
+        setTargetAmount(income ? String(income.amount) : "");
+        setCurrency((income?.currency as "NGN" | "USD") ?? "NGN");
+        setIsRecurring(income?.isRecurring ?? false);
+        setFrequencyMonths(String(income?.frequencyMonths ?? 1));
+        setEndsAtYearMonth(income?.endsAtYearMonth ?? "none");
+        setUpdateBase(false);
+    }, [income?.id]);
 
     const endOptions = isRecurring
         ? computeRecurringEndOptions(yearMonth, Number(frequencyMonths))
@@ -1632,6 +1867,7 @@ function IncomeForm({
                 updateBase: updateBase || undefined,
             });
         } else {
+            // Always creates a new income source (multi-income)
             await setTarget.mutateAsync({ yearMonth, ...payload });
         }
         onDone();
@@ -1641,7 +1877,7 @@ function IncomeForm({
         <div className="space-y-4">
             <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">Source name</label>
-                <Input type="text" value={targetName} onChange={(e) => setTargetName(e.target.value)} placeholder="e.g. Salary" maxLength={64} />
+                <Input type="text" value={targetName} onChange={(e) => setTargetName(e.target.value)} placeholder="e.g. Salary, Freelance" maxLength={64} />
             </div>
             <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">Target amount</label>
@@ -1693,7 +1929,7 @@ function IncomeForm({
                 </Select>
             )}
             <Button onClick={handleSetTarget} disabled={setTarget.isPending || updateTarget.isPending || !targetName.trim()} className="w-full">
-                {income ? "Save changes" : "Set target"}
+                {income ? "Save changes" : "Add income source"}
             </Button>
         </div>
     );

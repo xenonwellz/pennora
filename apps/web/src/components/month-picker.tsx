@@ -53,13 +53,13 @@ export function MonthPicker({ value, onChange, className }: MonthPickerProps) {
                         variant="outline"
                         className={cn(
                             "w-full justify-start gap-2 text-left font-normal sm:w-auto",
-                            className
+                            className,
                         )}
                     />
                 }
             >
-                <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="size-4 text-muted-foreground" />
-                <span>{formatLabel(value)}</span>
+                <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{formatLabel(value)}</span>
             </PopoverTrigger>
             <PopoverContent className="p-4" align="start">
                 <div className="flex items-center justify-between mb-3">
@@ -91,7 +91,7 @@ export function MonthPicker({ value, onChange, className }: MonthPickerProps) {
                                 className={cn(
                                     "h-9 rounded-xl text-sm font-medium transition-all duration-150",
                                     isSelected
-                                        ? "bg-primary text-primary-foreground shadow-sm"
+                                        ? "bg-primary text-primary-foreground"
                                         : "hover:bg-accent text-foreground/70 hover:text-foreground",
                                     isCurrent && !isSelected && "ring-1 ring-primary/40"
                                 )}

@@ -17,6 +17,8 @@ export function currYear(): number {
 export { computeRecurringEndOptions, addMonths, monthLabel as sharedMonthLabel } from "@expense/shared";
 
 export function formatCurrency(amount: number, currency: string): string {
+    if (currency === "NGN") return formatNGN(amount);
+    if (currency === "USD") return formatUSD(amount);
     return new Intl.NumberFormat("en", {
         style: "currency",
         currency: currency,
@@ -25,12 +27,40 @@ export function formatCurrency(amount: number, currency: string): string {
     }).format(amount);
 }
 
+/** Compact from 1M up: 1650000 → "1.650M", 2.5e9 → "2.500B" */
+function compactMagnitude(abs: number): string {
+    if (abs >= 1_000_000_000_000) {
+        return `${(abs / 1_000_000_000_000).toFixed(3)}T`;
+    }
+    if (abs >= 1_000_000_000) {
+        return `${(abs / 1_000_000_000).toFixed(3)}B`;
+    }
+    if (abs >= 1_000_000) {
+        return `${(abs / 1_000_000).toFixed(3)}M`;
+    }
+    return new Intl.NumberFormat("en-NG", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(abs);
+}
+
 export function formatNGN(amount: number): string {
-    return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(amount);
+    const sign = amount < 0 ? "-" : "";
+    return `${sign}₦${compactMagnitude(Math.abs(amount))}`;
 }
 
 export function formatUSD(amount: number): string {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+    const sign = amount < 0 ? "-" : "";
+    const abs = Math.abs(amount);
+    if (abs >= 1_000_000) {
+        return `${sign}$${compactMagnitude(abs)}`;
+    }
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(amount);
 }
 
 export function monthLabel(ym: string): string {

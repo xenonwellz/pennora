@@ -42,12 +42,15 @@ function Layout() {
         <TooltipProvider>
             <SidebarProvider>
                 <AppSidebar />
-                <SidebarInset>
-                    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
-                        <SidebarTrigger />
+                {/* Column layout: top bar stays put; only main scrolls */}
+                <SidebarInset className="flex min-h-svh flex-col overflow-hidden">
+                    <header className="app-topbar shrink-0">
+                        <div className="flex h-14 w-full items-center gap-2 px-4">
+                            <SidebarTrigger />
+                        </div>
                     </header>
-                    <div className="flex-1 overflow-auto">
-                        <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
+                    <div className="min-h-0 flex-1 overflow-auto app-dotted-bg safe-pb safe-px">
+                        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
                             <Outlet />
                         </div>
                     </div>

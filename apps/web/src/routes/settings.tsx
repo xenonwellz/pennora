@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession, authClient } from "../lib/clients/auth";
 import {
     useCategories,
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PanelCard, PanelCardContent, PanelCardHeader } from "@/components/panel-card";
+import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     AddCircleIcon,
@@ -38,6 +39,8 @@ type Tab = "categories" | "tags" | "members" | "profile" | "security";
 function SettingsPage() {
     const { data: activeBudget } = useActiveBudget();
     const [tab, setTab] = useState<Tab>("categories");
+    const tabListRef = useRef<HTMLDivElement>(null);
+    const tabRefs = useRef<Map<Tab, HTMLButtonElement>>(new Map());
 
     const tabs: { key: Tab; label: string; icon: typeof Folder01Icon; ownerOnly?: boolean }[] = [
         { key: "categories", label: "Categories", icon: Folder01Icon },
@@ -49,6 +52,22 @@ function SettingsPage() {
 
     const visibleTabs = tabs.filter((t) => !t.ownerOnly || activeBudget?.isOwner);
 
+    // Keep the active tab roughly centered in the horizontal scroller
+    useEffect(() => {
+        const list = tabListRef.current;
+        const activeEl = tabRefs.current.get(tab);
+        if (!list || !activeEl) return;
+
+        const listRect = list.getBoundingClientRect();
+        const tabRect = activeEl.getBoundingClientRect();
+        const tabCenter = tabRect.left - listRect.left + list.scrollLeft + tabRect.width / 2;
+        const target = tabCenter - list.clientWidth / 2;
+        const max = list.scrollWidth - list.clientWidth;
+        const next = Math.max(0, Math.min(target, max));
+
+        list.scrollTo({ left: next, behavior: "smooth" });
+    }, [tab, visibleTabs.length]);
+
     return (
         <div className="space-y-6">
             <div>
@@ -56,15 +75,25 @@ function SettingsPage() {
                 <p className="text-sm text-muted-foreground">Manage your account and budget metadata</p>
             </div>
 
-            <div className="flex gap-1 border-b border-border overflow-x-auto">
+            <div
+                ref={tabListRef}
+                className="flex gap-1 border-b border-border overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
                 {visibleTabs.map((t) => (
                     <button
                         key={t.key}
+                        ref={(el) => {
+                            if (el) tabRefs.current.set(t.key, el);
+                            else tabRefs.current.delete(t.key);
+                        }}
+                        type="button"
                         onClick={() => setTab(t.key)}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${tab === t.key
-                            ? "border-primary text-foreground"
-                            : "border-transparent text-muted-foreground hover:text-foreground"
-                            }`}
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0",
+                            tab === t.key
+                                ? "border-primary text-foreground"
+                                : "border-transparent text-muted-foreground hover:text-foreground",
+                        )}
                     >
                         <HugeiconsIcon icon={t.icon} strokeWidth={2} className="size-4" />
                         {t.label}

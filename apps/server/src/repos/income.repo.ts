@@ -10,19 +10,23 @@ function val() {
 }
 
 export class IncomeRepo {
-    findTarget(budgetId: string, yearMonth: string) {
+    findTargets(budgetId: string, yearMonth: string) {
         return db
             .select()
             .from(incomeTargets)
-            .where(and(eq(incomeTargets.budgetId, budgetId), eq(incomeTargets.yearMonth, yearMonth)))
-            .then((r) => r[0] ?? null);
+            .where(and(eq(incomeTargets.budgetId, budgetId), eq(incomeTargets.yearMonth, yearMonth)));
     }
 
-    findTargetById(budgetId: string, id: string) {
+    /** @deprecated use findTargets — kept for callers that only need “any” target */
+    findTarget(budgetId: string, yearMonth: string) {
+        return this.findTargets(budgetId, yearMonth).then((r) => r[0] ?? null);
+    }
+
+    findTargetById(budgetId: string, targetId: string) {
         return db
             .select()
             .from(incomeTargets)
-            .where(and(eq(incomeTargets.budgetId, budgetId), eq(incomeTargets.id, id)))
+            .where(and(eq(incomeTargets.budgetId, budgetId), eq(incomeTargets.id, targetId)))
             .then((r) => r[0] ?? null);
     }
 
@@ -76,28 +80,53 @@ export class IncomeRepo {
             );
     }
 
-    upsertTarget(budgetId: string, data: { yearMonth: string; amount: number; currency: string; label?: string; isRecurring?: boolean; frequencyMonths?: number; endsAtYearMonth?: string | null }) {
+    createTarget(
+        budgetId: string,
+        data: {
+            yearMonth: string;
+            amount: number;
+            currency: string;
+            label?: string;
+            isRecurring?: boolean;
+            frequencyMonths?: number;
+            endsAtYearMonth?: string | null;
+        },
+    ) {
         return db
             .insert(incomeTargets)
-            .values({ id: id(), budgetId, ...data })
-            .onConflictDoUpdate({
-                target: [incomeTargets.budgetId, incomeTargets.yearMonth],
-                set: {
-                    amount: data.amount,
-                    currency: data.currency,
-                    label: data.label,
-                    isRecurring: data.isRecurring ?? false,
-                    frequencyMonths: data.frequencyMonths ?? 1,
-                    endsAtYearMonth: data.endsAtYearMonth ?? null,
-                    updatedAt: new Date(),
-                },
+            .values({
+                id: id(),
+                budgetId,
+                yearMonth: data.yearMonth,
+                amount: data.amount,
+                currency: data.currency,
+                label: data.label,
+                isRecurring: data.isRecurring ?? false,
+                frequencyMonths: data.frequencyMonths ?? 1,
+                endsAtYearMonth: data.endsAtYearMonth ?? null,
             })
             .returning()
             .then((r) => r[0]);
     }
 
+    /** Insert a target for a month (used when seeding recurring). No conflict upsert. */
+    upsertTarget(
+        budgetId: string,
+        data: {
+            yearMonth: string;
+            amount: number;
+            currency: string;
+            label?: string;
+            isRecurring?: boolean;
+            frequencyMonths?: number;
+            endsAtYearMonth?: string | null;
+        },
+    ) {
+        return this.createTarget(budgetId, data);
+    }
+
     updateTarget(
-        id: string,
+        targetId: string,
         data: Partial<{
             amount: number;
             currency: string;
@@ -110,7 +139,7 @@ export class IncomeRepo {
         return db
             .update(incomeTargets)
             .set({ ...data, updatedAt: new Date() })
-            .where(eq(incomeTargets.id, id))
+            .where(eq(incomeTargets.id, targetId))
             .returning()
             .then((r) => r[0]);
     }
@@ -147,11 +176,29 @@ export class IncomeRepo {
             .where(and(eq(incomeEntries.budgetId, budgetId), eq(incomeEntries.yearMonth, yearMonth)));
     }
 
-    createEntry(data: { budgetId: string; incomeTargetId: string; yearMonth: string; amount: number; currency: string }) {
-        return db.insert(incomeEntries).values({ ...val(), receivedAt: new Date(), ...data }).returning().then((r) => r[0]);
+    createEntry(data: {
+        budgetId: string;
+        incomeTargetId: string;
+        yearMonth: string;
+        amount: number;
+        currency: string;
+    }) {
+        return db
+            .insert(incomeEntries)
+            .values({ ...val(), receivedAt: new Date(), ...data })
+            .returning()
+            .then((r) => r[0]);
     }
 
-    deleteEntry(id: string) {
-        return db.delete(incomeEntries).where(eq(incomeEntries.id, id));
+    deleteEntry(entryId: string) {
+        return db.delete(incomeEntries).where(eq(incomeEntries.id, entryId));
+    }
+
+    deleteEntriesForTarget(targetId: string) {
+        return db.delete(incomeEntries).where(eq(incomeEntries.incomeTargetId, targetId));
+    }
+
+    deleteTarget(targetId: string) {
+        return db.delete(incomeTargets).where(eq(incomeTargets.id, targetId));
     }
 }

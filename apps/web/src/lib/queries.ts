@@ -49,11 +49,24 @@ export interface BudgetItem {
     amount: number;
     currency: string;
     paid: boolean;
+    isDraft: boolean;
     isRecurring: boolean;
     categoryId: string | null;
     category: { name: string } | null;
     frequencyMonths: number;
     endsAtYearMonth: string | null;
+}
+
+export interface IncomeTargetSummary {
+    id: string;
+    amount: number;
+    currency: string;
+    label?: string | null;
+    isRecurring?: boolean | null;
+    frequencyMonths?: number | null;
+    endsAtYearMonth?: string | null;
+    totalReceived: number;
+    entries: { id: string; amount: number; currency: string }[];
 }
 
 export function useBudgetItems(yearMonth: string, enabled = true) {
@@ -64,12 +77,18 @@ export function useBudgetItems(yearMonth: string, enabled = true) {
     });
 }
 
-export function useIncomeTarget(yearMonth: string, enabled = true) {
-    return useQuery({
+/** Multiple income sources for a month. */
+export function useIncomeTargets(yearMonth: string, enabled = true) {
+    return useQuery<IncomeTargetSummary[]>({
         queryKey: ["budget", "income", yearMonth],
-        queryFn: () => orpc.income.getIncomeTarget({ yearMonth }),
+        queryFn: () => orpc.income.getIncomeTarget({ yearMonth }) as Promise<IncomeTargetSummary[]>,
         enabled,
     });
+}
+
+/** @deprecated use useIncomeTargets */
+export function useIncomeTarget(yearMonth: string, enabled = true) {
+    return useIncomeTargets(yearMonth, enabled);
 }
 
 export function useCategories() {
@@ -117,6 +136,18 @@ export function useTogglePaid() {
         mutationFn: (id: string) => orpc.budget.togglePaid({ id }),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["budget"] });
+            qc.invalidateQueries({ queryKey: ["analytics"] });
+        },
+    });
+}
+
+export function useSetItemDraft() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (data: { id: string; isDraft: boolean }) => orpc.budget.setItemDraft(data),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["budget"] });
+            qc.invalidateQueries({ queryKey: ["analytics"] });
         },
     });
 }
@@ -232,6 +263,9 @@ export function useUpsertRate() {
         onSuccess: (_data, { yearMonth }) => {
             qc.invalidateQueries({ queryKey: ["rates", yearMonth] });
             qc.invalidateQueries({ queryKey: ["rates", "latest"] });
+            // Summary converts via rate — refresh analytics + budget views
+            qc.invalidateQueries({ queryKey: ["analytics"] });
+            qc.invalidateQueries({ queryKey: ["budget"] });
         },
     });
 }
@@ -250,6 +284,7 @@ export function useSetIncomeTarget() {
         }) => orpc.income.setIncomeTarget(data),
         onSuccess: (_data, { yearMonth }) => {
             qc.invalidateQueries({ queryKey: ["budget", "income", yearMonth] });
+            qc.invalidateQueries({ queryKey: ["analytics"] });
         },
     });
 }
@@ -267,7 +302,21 @@ export function useUpdateIncomeTarget() {
             endsAtYearMonth?: string | null;
             updateBase?: boolean;
         }) => orpc.income.updateIncomeTarget(data),
-        onSuccess: () => qc.invalidateQueries({ queryKey: ["budget", "income"] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["budget", "income"] });
+            qc.invalidateQueries({ queryKey: ["analytics"] });
+        },
+    });
+}
+
+export function useDeleteIncomeTarget() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => orpc.income.deleteIncomeTarget({ id }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["budget", "income"] });
+            qc.invalidateQueries({ queryKey: ["analytics"] });
+        },
     });
 }
 

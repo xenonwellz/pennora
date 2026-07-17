@@ -85,6 +85,9 @@ export class BudgetItemsRepo {
             isRecurring: boolean;
             frequencyMonths: number;
             endsAtYearMonth: string | null;
+            isDraft: boolean;
+            paid: boolean;
+            paidAt: Date | null;
         }>,
     ) {
         return db
@@ -132,7 +135,26 @@ export class BudgetItemsRepo {
     togglePaid(id: string, paid: boolean) {
         return db
             .update(budgetItems)
-            .set({ paid, paidAt: paid ? new Date() : null })
+            .set({
+                paid,
+                paidAt: paid ? new Date() : null,
+                // Activating paid clears draft
+                ...(paid ? { isDraft: false } : {}),
+            })
+            .where(eq(budgetItems.id, id))
+            .returning()
+            .then((r) => r[0]);
+    }
+
+    setDraft(id: string, isDraft: boolean) {
+        return db
+            .update(budgetItems)
+            .set({
+                isDraft,
+                // Drafts are never paid
+                ...(isDraft ? { paid: false, paidAt: null } : {}),
+                updatedAt: new Date(),
+            })
             .where(eq(budgetItems.id, id))
             .returning()
             .then((r) => r[0]);

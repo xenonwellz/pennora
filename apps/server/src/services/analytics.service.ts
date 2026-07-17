@@ -47,8 +47,10 @@ export class AnalyticsService extends BaseService {
 
     async getMonthBreakdown(budgetId: string, yearMonth: string) {
         const rates = await this.getRates(budgetId, yearMonth);
-        const items = await this.budgetItems.findByMonth(budgetId, yearMonth);
-        const incomeTarget = await this.income.findTarget(budgetId, yearMonth);
+        const allItems = await this.budgetItems.findByMonth(budgetId, yearMonth);
+        // Draft expenses are excluded from totals / charts until activated
+        const items = allItems.filter((i) => !i.isDraft);
+        const incomeTargets = await this.income.findTargets(budgetId, yearMonth);
         const incomeEntries = await this.income.findEntries(budgetId, yearMonth);
 
         const categoryMap = new Map<
@@ -107,9 +109,10 @@ export class AnalyticsService extends BaseService {
             receivedNgn: number;
         }> = [];
 
-        if (incomeTarget) {
+        for (const incomeTarget of incomeTargets) {
             const targetNgn = toNgn(incomeTarget.amount, incomeTarget.currency as Currency, rates);
-            const receivedNgn = incomeEntries.reduce(
+            const targetEntries = incomeEntries.filter((e) => e.incomeTargetId === incomeTarget.id);
+            const receivedNgn = targetEntries.reduce(
                 (s, e) => s + toNgn(e.amount, e.currency as Currency, rates),
                 0,
             );
@@ -118,6 +121,20 @@ export class AnalyticsService extends BaseService {
                 totalNgn: targetNgn,
                 targetNgn,
                 receivedNgn,
+            });
+        }
+
+        // Orphan entries (no target) still count as received income
+        const linkedIds = new Set(incomeTargets.map((t) => t.id));
+        const orphanReceivedNgn = incomeEntries
+            .filter((e) => !e.incomeTargetId || !linkedIds.has(e.incomeTargetId))
+            .reduce((s, e) => s + toNgn(e.amount, e.currency as Currency, rates), 0);
+        if (orphanReceivedNgn > 0) {
+            incomeGroups.push({
+                label: "Other income",
+                totalNgn: orphanReceivedNgn,
+                targetNgn: 0,
+                receivedNgn: orphanReceivedNgn,
             });
         }
 
@@ -239,6 +256,7 @@ export class AnalyticsService extends BaseService {
 
         const catKey = params.categoryId ?? "uncategorized";
         const filtered = items.filter((item) => {
+            if (item.isDraft) return false;
             const key = item.categoryId ?? "uncategorized";
             return key === catKey;
         });
@@ -286,7 +304,7 @@ export class AnalyticsService extends BaseService {
         }
 
         const breakdown = await this.getMonthBreakdown(budgetId, yearMonth);
-        const items = await this.budgetItems.findByMonth(budgetId, yearMonth);
+        const items = (await this.budgetItems.findByMonth(budgetId, yearMonth)).filter((i) => !i.isDraft);
         const rates = await this.getRates(budgetId, yearMonth);
 
         const paidItems = items.filter((i) => i.paid);
@@ -363,7 +381,7 @@ export class AnalyticsService extends BaseService {
     async getDashboardSummary(budgetId: string, yearMonth: string) {
         const month = await this.budgetMonths.find(budgetId, yearMonth);
         const breakdown = await this.getMonthBreakdown(budgetId, yearMonth);
-        const items = await this.budgetItems.findByMonth(budgetId, yearMonth);
+        const items = (await this.budgetItems.findByMonth(budgetId, yearMonth)).filter((i) => !i.isDraft);
         const rates = await this.getRates(budgetId, yearMonth);
 
         const status = (month?.status ?? "uninitialized") as "uninitialized" | "planning" | "completed";

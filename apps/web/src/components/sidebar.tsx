@@ -61,7 +61,7 @@ export function AppSidebar() {
 
     return (
         <Sidebar className="border-r border-sidebar-border">
-            <SidebarHeader className="gap-3 border-b border-sidebar-border px-3 py-4">
+            <SidebarHeader className="gap-3 border-b border-sidebar-border px-3 py-4 shrink-0">
                 <div className="flex items-center gap-3 px-1">
                     <Logo size={36} className="rounded-lg" />
                     <div className="min-w-0">
@@ -76,7 +76,7 @@ export function AppSidebar() {
                 <BudgetSwitcher />
             </SidebarHeader>
 
-            <SidebarContent className="px-2 py-3">
+            <SidebarContent className="min-h-0 flex-1 overflow-auto px-2 py-3">
                 <SidebarGroup>
                     <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/40">
                         Menu
@@ -112,7 +112,7 @@ export function AppSidebar() {
 
             <SidebarSeparator />
 
-            <SidebarFooter className="gap-2 p-3">
+            <SidebarFooter className="gap-2 p-3 shrink-0">
                 <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
                     <PopoverTrigger
                         className="flex w-full items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/30 px-3 py-2.5 text-left transition-colors hover:bg-sidebar-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
@@ -131,7 +131,7 @@ export function AppSidebar() {
                         align="start"
                         side="top"
                         sideOffset={8}
-                        className="z-100 w-56 rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+                        className="z-100 w-56 rounded-xl border border-border bg-popover p-1 text-popover-foreground"
                     >
                         <Button
                             variant="ghost"

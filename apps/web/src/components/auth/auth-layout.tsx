@@ -29,7 +29,7 @@ export function AuthLayout({
 }: AuthLayoutProps) {
     if (variant === "centered") {
         return (
-            <div className="relative flex min-h-screen items-center justify-center bg-sidebar px-4 py-10 sm:px-8">
+            <div className="relative flex min-h-screen items-center justify-center bg-sidebar px-4 py-10 sm:px-8 safe-inset">
                 <GradientPanel />
                 <div className="relative z-10 w-full max-w-md">
                     <div className="mb-8 text-center">
@@ -37,7 +37,7 @@ export function AuthLayout({
                         <p className="font-heading text-sm font-semibold text-white/90">Pennora</p>
                     </div>
 
-                    <div className="rounded-2xl bg-white px-6 py-8 shadow-xl sm:px-8">
+                    <div className="rounded-2xl border border-border bg-white px-6 py-8 sm:px-8">
                         <h1 className="font-heading text-xl font-semibold text-foreground">
                             {title}
                         </h1>
@@ -56,7 +56,7 @@ export function AuthLayout({
 
     return (
         <div className="grid min-h-screen lg:grid-cols-2">
-            <aside className="relative hidden overflow-hidden bg-sidebar lg:flex lg:flex-col lg:justify-between px-10 py-10">
+            <aside className="relative hidden overflow-hidden bg-sidebar lg:flex lg:flex-col lg:justify-between px-10 py-10 safe-pt safe-pb safe-pl">
                 <GradientPanel />
                 <div className="relative z-10">
                     <div className="mb-12 flex items-center gap-3">
@@ -80,7 +80,7 @@ export function AuthLayout({
                 </p>
             </aside>
 
-            <div className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-8 bg-background">
+            <div className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-8 bg-background safe-inset">
                 <div className="w-full max-w-md">
                     <div className="mb-8 text-center lg:hidden">
                         <Logo size={48} className="mx-auto mb-4 rounded-2xl" />
