@@ -9,10 +9,16 @@ import { router } from "./orpc/router";
 
 const app = new Hono();
 
+const allowAnyOrigin = env.CORS_ORIGINS.includes("*");
+
 app.use(
     "/*",
     cors({
-        origin: env.CORS_ORIGINS,
+        // Browsers reject `Access-Control-Allow-Origin: *` with credentials.
+        // Reflect the request Origin when CORS_ORIGINS=* instead.
+        origin: allowAnyOrigin
+            ? (origin) => origin
+            : env.CORS_ORIGINS,
         credentials: true,
     }),
 );

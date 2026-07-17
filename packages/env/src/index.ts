@@ -12,6 +12,25 @@ export const urlsFromCsv = z
     )
     .pipe(z.array(z.string().url()).min(1));
 
+/** Comma-separated origins, or `*` to allow any origin (Better Auth + CORS). */
+export const corsOriginsFromCsv = z
+    .string()
+    .transform((raw) =>
+        raw
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+    )
+    .pipe(
+        z
+            .array(z.union([z.literal("*"), z.string().url()]))
+            .min(1)
+            .transform((origins) =>
+                // If `*` is present, trust everything (Better Auth supports host pattern `*`)
+                origins.includes("*") ? (["*"] as const) : origins,
+            ),
+    );
+
 function getRuntimeEnv(): RuntimeEnv {
     const viteEnv = (import.meta as unknown as { env?: RuntimeEnv }).env;
     if (viteEnv) {

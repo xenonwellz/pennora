@@ -33,7 +33,8 @@ services:
             BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
             BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
             APP_URL: ${APP_URL:-http://localhost:8080}
-            CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+            # `*` = any browser origin (fixes INVALID_ORIGIN when host/IP varies)
+            CORS_ORIGINS: "${CORS_ORIGINS:-*}"
             GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
             GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
             RESEND_API_KEY: ${RESEND_API_KEY:-}

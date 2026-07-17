@@ -106,10 +106,10 @@ cp .env.example .env
 # Required: set a strong BETTER_AUTH_SECRET
 # openssl rand -base64 32
 #
-# For Docker, point auth/app URLs at the published web port:
+# For Docker, point auth/app base URLs at the public web origin:
 # BETTER_AUTH_URL=http://localhost:8080
 # APP_URL=http://localhost:8080
-# CORS_ORIGINS=http://localhost:8080
+# CORS_ORIGINS=*   (default in docker-compose.prod.yml — allows any host)
 
 bun run start   # docker compose -f docker-compose.prod.yml up --build -d
 ```
