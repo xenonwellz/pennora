@@ -226,7 +226,7 @@
     background-color: var(--background);
     background-image: radial-gradient(
         circle,
-        color-mix(in oklch, var(--foreground) 11%, transparent) 0.85px,
+        color-mix(in oklch, var(--foreground) 5%, transparent) 0.85px,
         transparent 0.85px
     );
     background-size: 13px 13px;
@@ -236,7 +236,7 @@
 .dark .app-dotted-bg {
     background-image: radial-gradient(
         circle,
-        color-mix(in oklch, var(--foreground) 9%, transparent) 0.85px,
+        color-mix(in oklch, var(--foreground) 4%, transparent) 0.85px,
         transparent 0.85px
     );
 }
@@ -269,16 +269,16 @@
     padding-left: env(safe-area-inset-left, 0px);
 }
 
-/* App top bar: 3.5rem content + status-bar inset.
-   Mobile: fixed to top, z below sheet/sidebar (z-50) so drawer covers it.
-   Desktop: sticky within the main column. */
+/* App top bar: frosted glass over content (dots show through) */
 .app-topbar {
     z-index: 30;
     padding-top: env(safe-area-inset-top, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
-    background-color: var(--background);
-    border-bottom: 1px solid var(--border);
+    background-color: color-mix(in oklch, var(--background) 45%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    backdrop-filter: blur(24px) saturate(1.6);
+    border-bottom: 1px solid color-mix(in oklch, var(--border) 40%, transparent);
 }
 
 @media (max-width: 767px) {
@@ -287,6 +287,10 @@
         top: 0;
         left: 0;
         right: 0;
+        background-color: color-mix(in oklch, var(--background) 35%, transparent);
+        -webkit-backdrop-filter: blur(28px) saturate(1.8);
+        backdrop-filter: blur(28px) saturate(1.8);
+        border-bottom-color: color-mix(in oklch, var(--border) 35%, transparent);
     }
 
     /* Matches header content height (3.5rem) + safe-area top */

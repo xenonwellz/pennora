@@ -27,29 +27,35 @@ export function AuthLayout({
     footer,
     variant = "split",
 }: AuthLayoutProps) {
+    // Don’t use .safe-inset here — it sets padding: env(...) and wipes Tailwind px-* to 0
+    // when safe-area insets are 0 (most mobile browsers).
+    const authPagePad =
+        "px-6 py-10 sm:px-8 " +
+        "[padding-top:max(2.5rem,env(safe-area-inset-top,0px))] " +
+        "[padding-bottom:max(2.5rem,env(safe-area-inset-bottom,0px))] " +
+        "[padding-left:max(1.5rem,env(safe-area-inset-left,0px))] " +
+        "[padding-right:max(1.5rem,env(safe-area-inset-right,0px))]";
+
     if (variant === "centered") {
         return (
-            <div className="relative flex min-h-screen items-center justify-center bg-sidebar px-0 py-10 sm:px-8 safe-pt safe-pb">
+            <div
+                className={`relative flex min-h-screen items-center justify-center bg-sidebar ${authPagePad}`}
+            >
                 <GradientPanel />
                 <div className="relative z-10 w-full max-w-md">
-                    <div className="mb-8 px-4 text-center sm:px-0">
+                    <div className="mb-8 text-center">
                         <Logo size={48} className="mx-auto mb-4 rounded-2xl" />
                         <p className="font-heading text-sm font-semibold text-white/90">Pennora</p>
                     </div>
 
-                    {/* Full-bleed on mobile so inputs reach the screen edge */}
-                    <div className="border-y border-border bg-white px-0 py-8 sm:rounded-2xl sm:border sm:px-8">
-                        <div className="px-4 sm:px-0">
-                            <h1 className="font-heading text-xl font-semibold text-foreground">
-                                {title}
-                            </h1>
-                            <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
-                        </div>
-                        <div className="mt-6 space-y-5 px-0 sm:px-0 [&_input]:rounded-none sm:[&_input]:rounded-xl">
-                            {children}
-                        </div>
+                    <div className="rounded-2xl border border-border bg-white px-6 py-8 sm:px-8">
+                        <h1 className="font-heading text-xl font-semibold text-foreground">
+                            {title}
+                        </h1>
+                        <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
+                        <div className="mt-6 space-y-5">{children}</div>
                         {footer && (
-                            <div className="mt-6 border-t border-border px-4 pt-4 text-center text-sm text-muted-foreground sm:px-0">
+                            <div className="mt-6 border-t border-border pt-4 text-center text-sm text-muted-foreground">
                                 {footer}
                             </div>
                         )}
@@ -85,28 +91,24 @@ export function AuthLayout({
                 </p>
             </aside>
 
-            {/* Mobile: no horizontal padding — inputs flush to screen edges */}
-            <div className="flex min-h-screen items-center justify-center bg-background px-0 py-10 sm:px-8 safe-pt safe-pb">
+            <div
+                className={`flex min-h-screen items-center justify-center bg-background ${authPagePad}`}
+            >
                 <div className="w-full max-w-md">
                     <div className="mb-8 text-center lg:hidden">
                         <Logo size={48} className="mx-auto mb-4 rounded-2xl" />
                         <p className="font-heading text-sm font-semibold text-foreground">Pennora</p>
                     </div>
 
-                    <div className="px-0 sm:px-0">
-                        <h1 className="font-heading px-4 text-xl font-semibold text-foreground sm:px-0">
-                            {title}
-                        </h1>
-                        <p className="mt-1.5 px-4 text-sm text-muted-foreground sm:px-0">{subtitle}</p>
-                    </div>
+                    <h1 className="font-heading text-xl font-semibold text-foreground">
+                        {title}
+                    </h1>
+                    <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
 
-                    {/* Labels padded; inputs / full-width controls touch the edges on mobile */}
-                    <div className="mt-6 space-y-5 [&_label]:px-4 sm:[&_label]:px-0 [&_input]:rounded-none sm:[&_input]:rounded-xl [&_button]:rounded-none sm:[&_button]:rounded-xl [&_.text-right]:px-4 sm:[&_.text-right]:px-0">
-                        {children}
-                    </div>
+                    <div className="mt-6 space-y-5">{children}</div>
 
                     {footer && (
-                        <div className="mt-6 px-4 text-center text-sm text-muted-foreground sm:px-0">
+                        <div className="mt-6 text-center text-sm text-muted-foreground">
                             {footer}
                         </div>
                     )}
