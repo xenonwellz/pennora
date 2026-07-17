@@ -14,6 +14,7 @@ export const env = Env({
     CORS_ORIGINS: corsOriginsFromCsv.default("http://localhost:19802"),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
-    RESEND_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().default("Pennora <onboarding@resend.dev>"),
+    /** SendByte API key (`sk_test_…` sandbox or `sk_live_…`). https://docs.sendbyte.africa/ */
+    SENDBYTE_API_KEY: z.string().optional(),
+    EMAIL_FROM: z.string().default("Pennora <noreply@pennora.cv>"),
 });

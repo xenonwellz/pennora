@@ -50,7 +50,7 @@ function ForgotPasswordPage() {
             >
                 <p className="text-sm leading-relaxed text-muted-foreground">
                     Password reset emails require a{" "}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[11px]">RESEND_API_KEY</code>{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 text-[11px]">SENDBYTE_API_KEY</code>{" "}
                     in your environment. Contact your administrator to reset your password manually.
                 </p>
             </AuthLayout>

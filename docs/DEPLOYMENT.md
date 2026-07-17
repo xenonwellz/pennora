@@ -101,8 +101,8 @@ npx wrangler secret put BETTER_AUTH_SECRET --config apps/server/wrangler.toml
 npx wrangler secret put GOOGLE_CLIENT_ID --config apps/server/wrangler.toml
 npx wrangler secret put GOOGLE_CLIENT_SECRET --config apps/server/wrangler.toml
 
-# Optional — Resend email
-npx wrangler secret put RESEND_API_KEY --config apps/server/wrangler.toml
+# Optional — SendByte email (https://docs.sendbyte.africa/)
+npx wrangler secret put SENDBYTE_API_KEY --config apps/server/wrangler.toml
 ```
 
 | Secret / var | Required | Description |
@@ -112,8 +112,8 @@ npx wrangler secret put RESEND_API_KEY --config apps/server/wrangler.toml
 | `APP_URL` | Yes | Used in invite links (usually same as above) |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
-| `RESEND_API_KEY` | No | Resend API key |
-| `EMAIL_FROM` | No | Sender address (set as a `[vars]` entry if using Resend) |
+| `SENDBYTE_API_KEY` | No | SendByte API key (`sk_test_…` or `sk_live_…`) |
+| `EMAIL_FROM` | No | Sender address (set as a `[vars]` entry if using SendByte) |
 
 ### Deploy the Worker
 
@@ -200,18 +200,19 @@ The `exclude` rule ensures `/api/*` requests reach the Worker, not Pages.
 4. Store the client ID and secret as Worker secrets (step 2).
 5. Redeploy the Worker if you changed vars.
 
-## 5. Email with Resend (optional)
+## 5. Email with SendByte (optional)
 
-1. Create an account at [Resend](https://resend.com).
-2. Verify your sending domain (e.g. `pennora.cv`).
-3. Set `RESEND_API_KEY` as a Worker secret.
-4. Add to `wrangler.toml` `[vars]`:
+1. Create an account at [SendByte](https://app.sendbyte.africa/signup) — see [docs](https://docs.sendbyte.africa/).
+2. Copy your sandbox key (`sk_test_…`) or create a live key (`sk_live_…`).
+3. For live sending, verify your domain (e.g. `pennora.cv`) in the SendByte dashboard.
+4. Set `SENDBYTE_API_KEY` as a Worker secret.
+5. Add to `wrangler.toml` `[vars]`:
 
    ```toml
    EMAIL_FROM = "Pennora <noreply@pennora.cv>"
    ```
 
-Without email, password reset and invite links still work — users copy the link from the UI.
+Sandbox keys simulate delivery without domain setup. Without email configured, password reset and invite links still work — users copy the link from the UI.
 
 ## 6. Local deploy script
 
@@ -264,7 +265,7 @@ After the first deploy, set sensitive values with Wrangler:
 npx wrangler secret put BETTER_AUTH_SECRET --config apps/server/wrangler.toml
 npx wrangler secret put GOOGLE_CLIENT_ID --config apps/server/wrangler.toml
 npx wrangler secret put GOOGLE_CLIENT_SECRET --config apps/server/wrangler.toml
-npx wrangler secret put RESEND_API_KEY --config apps/server/wrangler.toml
+npx wrangler secret put SENDBYTE_API_KEY --config apps/server/wrangler.toml
 ```
 
 ## 7. Updates

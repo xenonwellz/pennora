@@ -8,7 +8,7 @@ export function isGoogleEnabled() {
 }
 
 export function isEmailEnabled() {
-    return Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
+    return Boolean(env.SENDBYTE_API_KEY && env.EMAIL_FROM);
 }
 
 export function publicConfig() {

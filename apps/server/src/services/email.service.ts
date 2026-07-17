@@ -7,15 +7,19 @@ type SendEmailInput = {
     text?: string;
 };
 
+/**
+ * Transactional email via SendByte (https://docs.sendbyte.africa/).
+ * Requires SENDBYTE_API_KEY + EMAIL_FROM. Sandbox keys (sk_test_*) need no domain.
+ */
 export async function sendEmail({ to, subject, html, text }: SendEmailInput) {
     if (!isEmailEnabled()) {
         throw new Error("Email is not configured");
     }
 
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.sendbyte.africa/v1/emails", {
         method: "POST",
         headers: {
-            Authorization: `Bearer ${env.RESEND_API_KEY}`,
+            Authorization: `Bearer ${env.SENDBYTE_API_KEY}`,
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -23,7 +27,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailInput) {
             to: [to],
             subject,
             html,
-            text: text ?? html.replace(/<[^>]+>/g, ""),
+            text: text ?? html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
         }),
     });
 

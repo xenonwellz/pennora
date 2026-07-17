@@ -12,7 +12,7 @@ Pennora is a self-hostable monthly budget planner built for people who manage fi
 - **Income & expenses** — Unified view with filters, paid/unpaid tracking, recurring schedules, and category tags.
 - **Multi-currency** — Native support for NGN and USD with monthly rate conversion.
 - **Dashboard analytics** — Income vs expenses, category breakdown, trends, and drill-down by category.
-- **Collaboration** — Invite collaborators to a shared budget (email invites when Resend is configured).
+- **Collaboration** — Invite collaborators to a shared budget (email invites when SendByte is configured).
 - **Authentication** — Email/password with optional Google OAuth via [Better Auth](https://www.better-auth.com/).
 - **Progressive Web App** — Installable on mobile with offline-friendly static assets.
 - **Responsive UI** — Card layouts on small screens, full tables on desktop.
@@ -93,7 +93,7 @@ The Vite dev server proxies `/api` to the backend. Register an account at `/regi
 | Variable | Purpose |
 |----------|---------|
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Enable “Continue with Google” |
-| `RESEND_API_KEY` / `EMAIL_FROM` | Password reset and invite emails |
+| `SENDBYTE_API_KEY` / `EMAIL_FROM` | Password reset and invite emails (SendByte) |
 
 See [`.env.example`](.env.example) for all variables.
 

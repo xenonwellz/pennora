@@ -37,8 +37,8 @@ services:
             CORS_ORIGINS: "${CORS_ORIGINS:-*}"
             GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
             GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-            RESEND_API_KEY: ${RESEND_API_KEY:-}
-            EMAIL_FROM: ${EMAIL_FROM:-Pennora <onboarding@resend.dev>}
+            SENDBYTE_API_KEY: ${SENDBYTE_API_KEY:-}
+            EMAIL_FROM: ${EMAIL_FROM:-Pennora <noreply@pennora.cv>}
             PORT: "3001"
             MIGRATIONS_FOLDER: /app/src/db/migrations
 
