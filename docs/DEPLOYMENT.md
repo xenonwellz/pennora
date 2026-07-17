@@ -214,6 +214,26 @@ The `exclude` rule ensures `/api/*` requests reach the Worker, not Pages.
 
 Sandbox keys simulate delivery without domain setup. Without email configured, password reset and invite links still work — users copy the link from the UI.
 
+### Email templates
+
+By default the API renders **Handlebars** templates in-repo (`apps/server/src/emails/`) and sends HTML.
+
+Optionally create templates in the SendByte dashboard and pass their id/name so SendByte interpolates variables:
+
+```bash
+SENDBYTE_TEMPLATE_PASSWORD_RESET=password-reset   # or template UUID
+SENDBYTE_TEMPLATE_BUDGET_INVITE=budget-invite
+```
+
+Variables passed:
+
+| Template | Variables |
+|----------|-----------|
+| Password reset | `reset_url`, `brand_name`, `year` |
+| Budget invite | `invite_url`, `budget_name`, `expires_in_days`, `brand_name`, `year` |
+
+**Note:** SendByte flags `link_text_mismatch` if an `<a>` label is not the same as the URL. Use matching link text (or plain URL links) in dashboard templates.
+
 ## 6. Local deploy script
 
 Instead of CI/CD, Pennora uses a local deploy script (`deploy.sh`) that handles everything:

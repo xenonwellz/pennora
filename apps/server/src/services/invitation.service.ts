@@ -6,8 +6,8 @@ import { db } from "../db";
 import { user } from "../db/schema/auth";
 import { BudgetMembersRepo } from "../repos/budget-members.repo";
 import { BudgetsRepo } from "../repos/budgets.repo";
-import { sendEmail } from "./email.service";
-import { budgetInviteEmail } from "./email-templates";
+import { sendTemplatedEmail } from "./email.service";
+import { renderBudgetInviteEmail } from "../emails/render";
 
 const INVITE_EXPIRY_DAYS = 7;
 
@@ -68,16 +68,15 @@ export class InvitationService {
         let emailSent = false;
 
         if (isEmailEnabled()) {
-            const mail = budgetInviteEmail({
-                budgetName: budget.name,
-                inviteUrl,
-                expiresInDays: INVITE_EXPIRY_DAYS,
-            });
-            await sendEmail({
+            await sendTemplatedEmail({
                 to: normalizedEmail,
-                subject: mail.subject,
-                html: mail.html,
-                text: mail.text,
+                rendered: renderBudgetInviteEmail({
+                    budgetName: budget.name,
+                    inviteUrl,
+                    expiresInDays: INVITE_EXPIRY_DAYS,
+                }),
+                sendbyteTemplateId: env.SENDBYTE_TEMPLATE_BUDGET_INVITE,
+                tags: ["budget-invite"],
             });
             emailSent = true;
         }

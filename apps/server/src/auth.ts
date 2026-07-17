@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 import { env, isEmailEnabled, isGoogleEnabled } from "./config";
 import { db } from "./db";
 import { user } from "./db/schema/auth";
-import { sendEmail } from "./services/email.service";
-import { passwordResetEmail } from "./services/email-templates";
+import { sendTemplatedEmail } from "./services/email.service";
+import { renderPasswordResetEmail } from "./emails/render";
 import { InvitationService } from "./services/invitation.service";
 
 const invitationService = new InvitationService();
@@ -31,12 +31,11 @@ export const auth = betterAuth({
         ...(isEmailEnabled()
             ? {
                 sendResetPassword: async ({ user: resetUser, url }) => {
-                    const mail = passwordResetEmail(url);
-                    await sendEmail({
+                    await sendTemplatedEmail({
                         to: resetUser.email,
-                        subject: mail.subject,
-                        html: mail.html,
-                        text: mail.text,
+                        rendered: renderPasswordResetEmail(url),
+                        sendbyteTemplateId: env.SENDBYTE_TEMPLATE_PASSWORD_RESET,
+                        tags: ["password-reset"],
                     });
                 },
             }
