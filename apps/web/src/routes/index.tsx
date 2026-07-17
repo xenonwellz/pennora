@@ -259,13 +259,13 @@ function DashboardBody({
                         {(hasIncome || summary.expensesNgn > 0) && (
                             <>
                                 <FlatRow
-                                    label="Cash left now"
-                                    hint="After paid items"
+                                    label="Available"
+                                    hint="Paid"
                                     amount={afterPaidSoFar}
                                 />
                                 <FlatRow
-                                    label="If everything paid"
-                                    hint="After full plan"
+                                    label="Projected"
+                                    hint="All"
                                     amount={afterAllPaid}
                                 />
                             </>
@@ -277,15 +277,14 @@ function DashboardBody({
                                         <span className="font-medium text-foreground tabular-nums">
                                             {formatNGN(summary.unpaidExpensesNgn)}
                                         </span>{" "}
-                                        still unpaid
+                                        unpaid
                                         {incomeSpentPct !== null && (
                                             <>
                                                 {" · "}
-                                                plan is{" "}
                                                 <span className="font-medium text-foreground tabular-nums">
                                                     {incomeSpentPct}%
                                                 </span>{" "}
-                                                of income
+                                                spent
                                             </>
                                         )}
                                     </p>
@@ -304,8 +303,11 @@ function DashboardBody({
                                             }
                                         >
                                             {topCategory.name}
-                                        </button>{" "}
-                                        ({topCategoryPct}%)
+                                        </button>
+                                        {" "}
+                                        (
+                                        <span className="tabular-nums">{topCategoryPct}%</span>
+                                        )
                                     </p>
                                 )}
                             </div>

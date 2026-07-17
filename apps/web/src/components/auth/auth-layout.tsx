@@ -56,7 +56,7 @@ export function AuthLayout({
                         <p className="font-heading text-sm font-semibold text-white/90">Pennora</p>
                     </div>
 
-                    <div className="rounded-2xl border border-border bg-white px-6 py-8 sm:px-8">
+                    <div className="rounded-2xl border border-border bg-card px-6 py-8 sm:px-8">
                         <h1 className="font-heading text-xl font-semibold text-foreground">
                             {title}
                         </h1>
@@ -137,7 +137,10 @@ export function AuthLayout({
 
 export function AuthLink({ to, children }: { to: string; children: ReactNode }) {
     return (
-        <Link to={to} className="font-medium text-primary hover:underline">
+        <Link
+            to={to}
+            className="font-medium text-foreground underline-offset-2 hover:underline"
+        >
             {children}
         </Link>
     );

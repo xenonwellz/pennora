@@ -49,6 +49,29 @@ export function formatNGN(amount: number): string {
     return `${sign}₦${compactMagnitude(Math.abs(amount))}`;
 }
 
+/** Full NGN with grouping: 1500000 → "₦1,500,000" (no M/B compact). */
+export function formatNGNFull(amount: number): string {
+    const sign = amount < 0 ? "-" : "";
+    const body = new Intl.NumberFormat("en-NG", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(Math.abs(amount));
+    return `${sign}₦${body}`;
+}
+
+/** Full amount with grouping for budget summaries (always expands NGN/USD). */
+export function formatAmountFull(amount: number, currency = "NGN"): string {
+    const sign = amount < 0 ? "-" : "";
+    const abs = Math.abs(amount);
+    if (currency === "USD") {
+        return `${sign}$${new Intl.NumberFormat("en-US", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(abs)}`;
+    }
+    return formatNGNFull(amount);
+}
+
 export function formatUSD(amount: number): string {
     const sign = amount < 0 ? "-" : "";
     const abs = Math.abs(amount);

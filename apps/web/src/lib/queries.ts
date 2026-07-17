@@ -78,7 +78,11 @@ export interface DraftExpense {
     currency: string;
     yearMonth: string;
     isDraft: boolean;
+    categoryId?: string | null;
     category: { name: string } | null;
+    isRecurring?: boolean;
+    frequencyMonths?: number;
+    endsAtYearMonth?: string | null;
 }
 
 export interface DraftIncome {
@@ -88,6 +92,9 @@ export interface DraftIncome {
     currency: string;
     yearMonth: string;
     isDraft: boolean;
+    isRecurring?: boolean | null;
+    frequencyMonths?: number | null;
+    endsAtYearMonth?: string | null;
 }
 
 export function useBudgetItems(yearMonth: string, enabled = true) {
@@ -238,6 +245,7 @@ export function useUpdateBudgetItem() {
         }) => orpc.budget.updateBudgetItem(data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["budget"] });
+            qc.invalidateQueries({ queryKey: ["drafts"] });
             qc.invalidateQueries({ queryKey: ["analytics"] });
         },
     });
@@ -357,6 +365,7 @@ export function useUpdateIncomeTarget() {
         }) => orpc.income.updateIncomeTarget(data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["budget", "income"] });
+            qc.invalidateQueries({ queryKey: ["drafts"] });
             qc.invalidateQueries({ queryKey: ["analytics"] });
         },
     });

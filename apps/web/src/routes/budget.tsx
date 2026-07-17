@@ -24,6 +24,7 @@ import {
     useMonthAnalysis,
     useRateForMonth,
     useUpsertRate,
+    useIncomeDrafts,
     type BudgetItem,
     type IncomeTargetSummary,
 } from "../lib/queries";
@@ -53,7 +54,7 @@ import { PanelCard, PanelCardContent, PanelCardHeader } from "@/components/panel
 import { DivideFrame, DivideSectionLabel } from "@/components/divide-frame";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CategoryDrilldownDialog } from "@/components/category-drilldown-dialog";
-import { currMonth, formatCurrency, formatNGN, monthLabel, prevMonth, computeRecurringEndOptions, cn } from "../lib/utils";
+import { currMonth, formatCurrency, formatNGN, formatNGNFull, monthLabel, prevMonth, computeRecurringEndOptions, cn } from "../lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
     AddCircleIcon,
@@ -267,8 +268,8 @@ function TypeFilterBar({
                         "min-w-0 flex-1 basis-0 px-2 text-center sm:min-w-0 sm:flex-none sm:basis-auto sm:px-4",
                         i > 0 && "border-l border-border",
                         value === filter
-                            ? "bg-muted text-foreground"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                            ? "bg-primary text-primary-foreground font-semibold"
+                            : "text-foreground/70 hover:text-foreground hover:bg-muted",
                     )}
                 >
                     {TYPE_FILTER_LABELS[filter]}
@@ -282,10 +283,11 @@ function StatusBadge({ status }: { status: BudgetMonthStatus }) {
     return (
         <span
             className={cn(
-                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0",
-                status === "completed" && "bg-success/15 text-success",
-                status === "planning" && "bg-primary/10 text-primary",
-                status === "uninitialized" && "bg-muted text-muted-foreground",
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0",
+                status === "completed" && "bg-success/20 text-success ring-1 ring-success/30",
+                status === "planning" && "bg-primary text-primary-foreground",
+                status === "uninitialized" &&
+                    "bg-muted text-foreground/80 ring-1 ring-border",
             )}
         >
             {STATUS_LABELS[status]}
@@ -582,8 +584,8 @@ function BudgetPage() {
 
             {status === "uninitialized" && (
                 <div className="flex flex-col items-center py-6 text-center rounded-xl border border-dashed border-border bg-card/50">
-                    <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                        <HugeiconsIcon icon={MoneyAdd01Icon} strokeWidth={2} className="size-6 text-primary" />
+                    <div className="size-12 rounded-xl bg-primary flex items-center justify-center mb-4">
+                        <HugeiconsIcon icon={MoneyAdd01Icon} strokeWidth={2} className="size-6 text-primary-foreground" />
                     </div>
                     <p className="text-sm font-medium mb-1">No plan started for {yearMonth}</p>
                     <p className="text-xs text-muted-foreground max-w-sm">
@@ -608,17 +610,19 @@ function BudgetPage() {
 
                     {!isLoading && (
                         <>
-                            {/* One divide frame: summary + mobile list (no stacked cards) */}
-                            <DivideFrame className="divide-y divide-border">
-                                {typeFilter !== "expense" &&
-                                    ((incomes && incomes.length > 0) || (items && items.length > 0)) && (
-                                        <BudgetSummary
-                                            incomes={incomes}
-                                            items={items}
-                                            usdBuyRate={rate?.usdBuyRate ?? 1}
-                                        />
-                                    )}
+                            {/* Summary is its own frame — separate from the items list */}
+                            {typeFilter !== "expense" &&
+                                ((incomes && incomes.length > 0) || (items && items.length > 0)) && (
+                                    <BudgetSummary
+                                        yearMonth={yearMonth}
+                                        incomes={incomes}
+                                        items={items}
+                                        usdBuyRate={rate?.usdBuyRate ?? 1}
+                                    />
+                                )}
 
+                            {(visibleRows.length > 0 || isPlanning) && (
+                            <DivideFrame className="divide-y divide-border">
                                 {visibleRows.length > 0 && (
                                     <>
                                         <DivideSectionLabel className="sm:hidden">
@@ -806,11 +810,11 @@ function BudgetPage() {
 
                                 {visibleRows.length === 0 && isPlanning && (
                                     <div className="flex flex-col items-center py-8 px-4 text-center">
-                                        <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+                                        <div className="size-12 rounded-xl bg-primary flex items-center justify-center mb-3">
                                             <HugeiconsIcon
                                                 icon={typeFilter === "income" ? MoneyAdd01Icon : Coins02Icon}
                                                 strokeWidth={2}
-                                                className="size-6 text-primary"
+                                                className="size-6 text-primary-foreground"
                                             />
                                         </div>
                                         <p className="text-sm font-medium mb-1">
@@ -844,6 +848,7 @@ function BudgetPage() {
                                     </div>
                                 )}
                             </DivideFrame>
+                            )}
                         </>
                     )}
                 </>
@@ -1032,11 +1037,40 @@ function BudgetPage() {
     );
 }
 
+/** One labeled metric row — amount right-aligned */
+function SummaryMetricRow({
+    label,
+    amount,
+    amountClassName,
+}: {
+    label: string;
+    amount: string;
+    amountClassName?: string;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {label}
+            </span>
+            <span
+                className={cn(
+                    "font-mono text-sm tabular-nums text-right",
+                    amountClassName ?? "text-foreground",
+                )}
+            >
+                {amount}
+            </span>
+        </div>
+    );
+}
+
 function BudgetSummary({
+    yearMonth,
     incomes,
     items,
     usdBuyRate,
 }: {
+    yearMonth: string;
     incomes: IncomeTargetSummary[] | undefined;
     items: {
         amount: number;
@@ -1046,8 +1080,12 @@ function BudgetSummary({
     }[] | undefined;
     usdBuyRate: number;
 }) {
+    const { data: incomeDrafts } = useIncomeDrafts();
+
     // Always normalize to NGN so mixed USD/NGN lines sum correctly
     const activeItems = items?.filter((i) => !i.isDraft) ?? [];
+    const draftExpenseItems = items?.filter((i) => i.isDraft) ?? [];
+
     const totalExpenses = activeItems.reduce(
         (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
         0,
@@ -1070,107 +1108,156 @@ function BudgetSummary({
         return sum + (t.entries.length > 0 ? fromEntries : amountToNgn(t.totalReceived, t.currency, usdBuyRate));
     }, 0);
 
-    const remaining = incomeReceived - totalExpenses;
-    const draftCount = items?.filter((i) => i.isDraft).length ?? 0;
+    // Draft income for this month (month view API excludes drafts)
+    const monthIncomeDrafts = (incomeDrafts ?? []).filter((d) => d.yearMonth === yearMonth);
+    const draftIncomeTotal = monthIncomeDrafts.reduce(
+        (sum, d) => sum + amountToNgn(d.amount, d.currency, usdBuyRate),
+        0,
+    );
+    const draftExpenseTotal = draftExpenseItems.reduce(
+        (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
+        0,
+    );
+    const draftNet = draftIncomeTotal - draftExpenseTotal;
+    const draftCount = draftExpenseItems.length + monthIncomeDrafts.length;
 
-    const hasData = incomeAmount > 0 || totalExpenses > 0 || draftCount > 0;
+    const incomeOpen = Math.max(0, incomeAmount - incomeReceived);
+    const checkedNet = incomeReceived - paidExpenses;
+    const uncheckedNet = incomeOpen - unpaidExpenses;
+
+    const hasData =
+        incomeAmount > 0 || totalExpenses > 0 || draftCount > 0;
     if (!hasData) return null;
 
+    const targetSuffix = (total: number) =>
+        total > 0 ? (
+            <span className="mt-0.5 block font-mono text-[11px] font-normal tabular-nums text-muted-foreground">
+                / {formatNGNFull(total).replace(/^₦/, "")}
+            </span>
+        ) : null;
+
+    const showBreakdown = incomeAmount > 0 || totalExpenses > 0;
+    const showDrafts = draftCount > 0;
+
     return (
-        <div className="divide-y divide-border">
-            <div className="grid grid-cols-2 divide-x divide-border">
-                <div className="px-4 py-3.5 space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        Income
-                    </p>
-                    <p className="font-mono text-lg font-semibold text-success leading-tight">
-                        {formatNGN(incomeReceived)}
-                    </p>
-                    {incomeAmount > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                            of {formatNGN(incomeAmount)} target
-                            {(incomes?.length ?? 0) > 1 ? ` · ${incomes!.length} sources` : ""}
+        <div className="space-y-3 sm:space-y-4">
+            {/* Root totals — left-aligned amounts */}
+            <DivideFrame className="divide-y divide-border">
+                <div className="grid grid-cols-2 divide-x divide-border">
+                    <div className="px-4 py-3.5">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Income
                         </p>
-                    )}
+                        <p className="mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums text-success">
+                            {formatNGNFull(incomeReceived)}
+                        </p>
+                        {targetSuffix(incomeAmount)}
+                    </div>
+                    <div className="px-4 py-3.5">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Expenses
+                        </p>
+                        <p className="mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums text-expense">
+                            {formatNGNFull(paidExpenses)}
+                        </p>
+                        {targetSuffix(totalExpenses)}
+                    </div>
                 </div>
-                <div className="px-4 py-3.5 space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        Expenses
-                    </p>
-                    <p className="font-mono text-lg font-semibold text-expense leading-tight">
-                        {formatNGN(totalExpenses)}
-                    </p>
-                    {unpaidExpenses > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                            {formatNGN(unpaidExpenses)} unpaid
-                        </p>
-                    )}
-                    {draftCount > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                            <Link to="/drafts" className="underline-offset-2 hover:underline">
-                                {draftCount} draft{draftCount === 1 ? "" : "s"} excluded
-                            </Link>
-                        </p>
-                    )}
-                </div>
-            </div>
+            </DivideFrame>
 
-            {incomeAmount > 0 && (
-                <div className="px-4 py-3 space-y-2">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Income received</span>
-                        <span className="tabular-nums">
-                            {Math.min(100, Math.round((incomeReceived / incomeAmount) * 100))}%
-                        </span>
+            {/* Checked / Unchecked — separate frame from income/expense list */}
+            {showBreakdown && (
+                <DivideFrame>
+                    <div className="grid grid-cols-2 divide-x divide-border">
+                        {/* Checked column — each metric is its own split row */}
+                        <div className="divide-y divide-border min-w-0">
+                            <div className="px-4 py-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                    Checked
+                                </p>
+                            </div>
+                            <SummaryMetricRow
+                                label="Received"
+                                amount={formatNGNFull(incomeReceived)}
+                            />
+                            <SummaryMetricRow
+                                label="Paid"
+                                amount={`−${formatNGNFull(paidExpenses)}`}
+                            />
+                            <SummaryMetricRow
+                                label="Net"
+                                amount={`${checkedNet >= 0 ? "+" : ""}${formatNGNFull(checkedNet)}`}
+                                amountClassName={
+                                    checkedNet >= 0
+                                        ? "font-semibold text-success"
+                                        : "font-semibold text-expense"
+                                }
+                            />
+                        </div>
+
+                        {/* Unchecked column */}
+                        <div className="divide-y divide-border min-w-0">
+                            <div className="px-4 py-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                    Unchecked
+                                </p>
+                            </div>
+                            <SummaryMetricRow
+                                label="Open"
+                                amount={formatNGNFull(incomeOpen)}
+                            />
+                            <SummaryMetricRow
+                                label="Unpaid"
+                                amount={`−${formatNGNFull(unpaidExpenses)}`}
+                            />
+                            <SummaryMetricRow
+                                label="Net"
+                                amount={`${uncheckedNet >= 0 ? "+" : ""}${formatNGNFull(uncheckedNet)}`}
+                                amountClassName={
+                                    uncheckedNet >= 0
+                                        ? "font-semibold text-success"
+                                        : "font-semibold text-expense"
+                                }
+                            />
+                        </div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                            className="h-full rounded-full bg-success transition-all duration-500"
-                            style={{
-                                width: `${Math.min(100, (incomeReceived / incomeAmount) * 100)}%`,
-                            }}
-                        />
-                    </div>
-                </div>
+                </DivideFrame>
             )}
 
-            {totalExpenses > 0 && (
-                <div className="px-4 py-3 space-y-2">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Expenses paid</span>
-                        <span className="tabular-nums">
-                            {Math.round((paidExpenses / totalExpenses) * 100)}%
-                        </span>
+            {/* Drafts balance — excluded from active totals */}
+            {showDrafts && (
+                <DivideFrame className="divide-y divide-border">
+                    <div className="flex items-center justify-between gap-3 px-4 py-2">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Drafts
+                        </p>
+                        <Link
+                            to="/drafts"
+                            className="text-[10px] font-medium uppercase tracking-wider text-primary hover:underline underline-offset-2"
+                        >
+                            View all
+                        </Link>
                     </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                            className="h-full rounded-full bg-expense transition-all duration-500"
-                            style={{
-                                width: `${(paidExpenses / totalExpenses) * 100}%`,
-                            }}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {incomeAmount > 0 && totalExpenses > 0 && (
-                <div
-                    className={cn(
-                        "flex items-center justify-between px-4 py-3",
-                        remaining >= 0 ? "bg-success/5" : "bg-expense/5",
-                    )}
-                >
-                    <span className="text-sm font-medium">Remaining</span>
-                    <span
-                        className={cn(
-                            "font-mono text-sm font-semibold tabular-nums",
-                            remaining >= 0 ? "text-success" : "text-expense",
-                        )}
-                    >
-                        {remaining >= 0 ? "+" : ""}
-                        {formatNGN(remaining)}
-                    </span>
-                </div>
+                    <SummaryMetricRow
+                        label="Income"
+                        amount={formatNGNFull(draftIncomeTotal)}
+                        amountClassName="text-success"
+                    />
+                    <SummaryMetricRow
+                        label="Expenses"
+                        amount={`−${formatNGNFull(draftExpenseTotal)}`}
+                        amountClassName="text-expense"
+                    />
+                    <SummaryMetricRow
+                        label="Balance"
+                        amount={`${draftNet >= 0 ? "+" : ""}${formatNGNFull(draftNet)}`}
+                        amountClassName={
+                            draftNet >= 0
+                                ? "font-semibold text-success"
+                                : "font-semibold text-expense"
+                        }
+                    />
+                </DivideFrame>
             )}
         </div>
     );

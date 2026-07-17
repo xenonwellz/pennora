@@ -65,14 +65,14 @@ export function MonthPicker({ value, onChange, className }: MonthPickerProps) {
                 <div className="flex items-center justify-between mb-3">
                     <button
                         onClick={() => setViewYear((y) => y - 1)}
-                        className="size-7 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
+                        className="size-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
                     >
                         <HugeiconsIcon icon={ArrowLeftIcon} strokeWidth={2} className="size-3.5" />
                     </button>
                     <span className="text-sm font-semibold tabular-nums">{viewYear}</span>
                     <button
                         onClick={() => setViewYear((y) => y + 1)}
-                        className="size-7 rounded-lg flex items-center justify-center hover:bg-accent transition-colors"
+                        className="size-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors"
                     >
                         <HugeiconsIcon icon={ArrowRightIcon} strokeWidth={2} className="size-3.5" />
                     </button>
@@ -91,9 +91,9 @@ export function MonthPicker({ value, onChange, className }: MonthPickerProps) {
                                 className={cn(
                                     "h-9 rounded-xl text-sm font-medium transition-all duration-150",
                                     isSelected
-                                        ? "bg-primary text-primary-foreground"
-                                        : "hover:bg-accent text-foreground/70 hover:text-foreground",
-                                    isCurrent && !isSelected && "ring-1 ring-primary/40"
+                                        ? "bg-primary text-primary-foreground font-semibold"
+                                        : "hover:bg-muted text-foreground/70 hover:text-foreground",
+                                    isCurrent && !isSelected && "ring-1 ring-primary/50"
                                 )}
                             >
                                 {label}
