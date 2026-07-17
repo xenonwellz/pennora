@@ -25,7 +25,6 @@
     "@orpc/server": "^1.0.0",
     "better-auth": "^1.6.0",
     "drizzle-orm": "^0.45.0",
-    "handlebars": "^4.7.9",
     "hono": "^4.7.0",
     "pg": "^8.13.0",
     "zod": "^3.24.0"
@@ -33,7 +32,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250320.0",
     "@types/bun": "^1.3.14",
-    "@types/handlebars": "^4.1.0",
     "@types/pg": "^8.11.0",
     "drizzle-kit": "^0.30.0"
   }

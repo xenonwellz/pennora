@@ -17,11 +17,4 @@ export const env = Env({
     /** SendByte API key (`sk_test_…` sandbox or `sk_live_…`). https://docs.sendbyte.africa/ */
     SENDBYTE_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().default("Pennora <noreply@pennora.cv>"),
-    /**
-     * Optional SendByte dashboard template ids/names.
-     * When set, emails pass `template_id` + `variables` instead of inline HTML.
-     * Variable keys: reset_url | invite_url, budget_name, expires_in_days, brand_name, year
-     */
-    SENDBYTE_TEMPLATE_PASSWORD_RESET: z.string().optional(),
-    SENDBYTE_TEMPLATE_BUDGET_INVITE: z.string().optional(),
 });
