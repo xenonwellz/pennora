@@ -90,6 +90,7 @@ export class IncomeRepo {
             isRecurring?: boolean;
             frequencyMonths?: number;
             endsAtYearMonth?: string | null;
+            isDraft?: boolean;
         },
     ) {
         return db
@@ -104,7 +105,24 @@ export class IncomeRepo {
                 isRecurring: data.isRecurring ?? false,
                 frequencyMonths: data.frequencyMonths ?? 1,
                 endsAtYearMonth: data.endsAtYearMonth ?? null,
+                isDraft: data.isDraft ?? false,
             })
+            .returning()
+            .then((r) => r[0]);
+    }
+
+    findDrafts(budgetId: string) {
+        return db
+            .select()
+            .from(incomeTargets)
+            .where(and(eq(incomeTargets.budgetId, budgetId), eq(incomeTargets.isDraft, true)));
+    }
+
+    setDraft(targetId: string, isDraft: boolean) {
+        return db
+            .update(incomeTargets)
+            .set({ isDraft, updatedAt: new Date() })
+            .where(eq(incomeTargets.id, targetId))
             .returning()
             .then((r) => r[0]);
     }

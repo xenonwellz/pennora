@@ -103,6 +103,8 @@ export const incomeTargets = pgTable("income_targets", {
     isRecurring: boolean("is_recurring").notNull().default(false),
     frequencyMonths: integer("frequency_months").notNull().default(1),
     endsAtYearMonth: text("ends_at_year_month"),
+    /** Draft earnings are excluded from totals until activated. */
+    isDraft: boolean("is_draft").notNull().default(false),
     createdAt: timestamp("created_at").notNull().default(sql`now()`),
     updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

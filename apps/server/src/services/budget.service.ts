@@ -48,6 +48,7 @@ export class BudgetService extends BaseService {
             isRecurring?: boolean;
             frequencyMonths?: number;
             endsAtYearMonth?: string | null;
+            isDraft?: boolean;
         },
     ) {
         const item = await this.budgetItems.create({
@@ -60,6 +61,7 @@ export class BudgetService extends BaseService {
             isRecurring: data.isRecurring ?? false,
             frequencyMonths: data.frequencyMonths ?? 1,
             endsAtYearMonth: data.endsAtYearMonth ?? null,
+            isDraft: data.isDraft ?? false,
         });
 
         if (!item) throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "Failed to create budget item" });
@@ -133,6 +135,10 @@ export class BudgetService extends BaseService {
 
     getMonthItems(budgetId: string, yearMonth: string) {
         return this.budgetItems.findByMonth(budgetId, yearMonth);
+    }
+
+    listDrafts(budgetId: string) {
+        return this.budgetItems.findDrafts(budgetId);
     }
 
     getItem(budgetId: string, itemId: string) {

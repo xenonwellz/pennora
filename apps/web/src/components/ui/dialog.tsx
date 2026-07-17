@@ -217,7 +217,7 @@ function DialogPanelHeader({
 }
 
 function DialogPanelBody({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("px-6 py-4", className)} {...props} />
+  return <div className={cn("min-w-0 px-6 py-4", className)} {...props} />
 }
 
 export {

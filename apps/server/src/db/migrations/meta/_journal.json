@@ -15,6 +15,13 @@
       "when": 1784250000000,
       "tag": "0001_multi_income_and_draft",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784260000000,
+      "tag": "0002_income_draft",
+      "breakpoints": true
     }
   ]
 }

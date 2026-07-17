@@ -29,11 +29,26 @@ export const setIncomeTarget = authorized
         isRecurring: z.boolean().optional(),
         frequencyMonths: z.number().int().min(1).max(12).optional(),
         endsAtYearMonth: z.string().regex(/^\d{4}-\d{2}$/).nullable().optional(),
+        isDraft: z.boolean().optional(),
     }))
     .handler(async ({ context, input }) => {
         const budgetId = budgetGuard(context.user.activeBudgetId);
         await months.requirePlanning(budgetId, input.yearMonth);
         return income.createTarget(budgetId, input);
+    });
+
+export const listIncomeDrafts = authorized.handler(({ context }) =>
+    income.listDrafts(budgetGuard(context.user.activeBudgetId)),
+);
+
+export const setIncomeDraft = authorized
+    .input(z.object({ id: z.string(), isDraft: z.boolean() }))
+    .handler(async ({ context, input }) => {
+        const budgetId = budgetGuard(context.user.activeBudgetId);
+        const current = await income.getTargetById(budgetId, input.id);
+        if (!current) throw new ORPCError("NOT_FOUND", { message: "Income target not found" });
+        await months.requirePlanning(budgetId, current.yearMonth);
+        return income.setDraft(budgetId, input.id, input.isDraft);
     });
 
 export const updateIncomeTarget = authorized

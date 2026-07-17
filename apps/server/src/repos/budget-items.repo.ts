@@ -71,8 +71,16 @@ export class BudgetItemsRepo {
         isRecurring?: boolean;
         frequencyMonths?: number;
         endsAtYearMonth?: string | null;
+        isDraft?: boolean;
     }) {
         return db.insert(budgetItems).values({ id: id(), ...data }).returning().then((r) => r[0]);
+    }
+
+    findDrafts(budgetId: string) {
+        return db.query.budgetItems.findMany({
+            where: (b, { eq, and }) => and(eq(b.budgetId, budgetId), eq(b.isDraft, true)),
+            with: { category: true },
+        });
     }
 
     update(

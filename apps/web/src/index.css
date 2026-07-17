@@ -269,16 +269,38 @@
     padding-left: env(safe-area-inset-left, 0px);
 }
 
-/* App top bar: 3.5rem content + status-bar inset */
+/* App top bar: 3.5rem content + status-bar inset.
+   Mobile: fixed to top, z below sheet/sidebar (z-50) so drawer covers it.
+   Desktop: sticky within the main column. */
 .app-topbar {
-    position: sticky;
-    top: 0;
-    z-index: 40;
+    z-index: 30;
     padding-top: env(safe-area-inset-top, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
     background-color: var(--background);
     border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 767px) {
+    .app-topbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+    }
+
+    /* Matches header content height (3.5rem) + safe-area top */
+    .app-topbar-spacer {
+        height: calc(3.5rem + env(safe-area-inset-top, 0px));
+    }
+}
+
+@media (min-width: 768px) {
+    .app-topbar {
+        position: sticky;
+        top: 0;
+        flex-shrink: 0;
+    }
 }
 
 /* Auth gradient orbs */

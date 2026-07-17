@@ -33,12 +33,17 @@ export const addOneOffItem = authorized
         isRecurring: z.boolean().optional(),
         frequencyMonths: z.number().int().min(1).max(12).optional(),
         endsAtYearMonth: z.string().regex(/^\d{4}-\d{2}$/).nullable().optional(),
+        isDraft: z.boolean().optional(),
     }))
     .handler(async ({ context, input }) => {
         const budgetId = budgetGuard(context.user.activeBudgetId);
         await months.requirePlanning(budgetId, input.yearMonth);
         return budget.addOneOff(budgetId, input);
     });
+
+export const listExpenseDrafts = authorized.handler(({ context }) =>
+    budget.listDrafts(budgetGuard(context.user.activeBudgetId)),
+);
 
 export const updateBudgetItem = authorized
     .input(z.object({

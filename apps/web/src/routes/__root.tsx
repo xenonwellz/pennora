@@ -3,6 +3,8 @@ import { useSession } from "../lib/clients/auth";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/sidebar";
+import { Logo } from "@/components/logo";
+import { UserMenu } from "@/components/user-menu";
 
 const PUBLIC_ROUTES = new Set(["/login", "/register", "/forgot-password", "/reset-password"]);
 const AUTH_ONLY_ROUTES = new Set(["/login", "/register", "/forgot-password", "/reset-password"]);
@@ -44,11 +46,27 @@ function Layout() {
                 <AppSidebar />
                 {/* Column layout: top bar stays put; only main scrolls */}
                 <SidebarInset className="flex min-h-svh flex-col overflow-hidden">
-                    <header className="app-topbar shrink-0">
-                        <div className="flex h-14 w-full items-center gap-2 px-4">
-                            <SidebarTrigger />
+                    <header className="app-topbar">
+                        <div className="relative flex h-14 w-full items-center px-3 sm:px-4">
+                            {/* Left: open nav (mobile) / collapse (desktop) */}
+                            <SidebarTrigger className="relative z-10 shrink-0" />
+
+                            {/* Center logo — mobile top bar */}
+                            <div className="pointer-events-none absolute inset-x-0 flex justify-center md:hidden">
+                                <Logo size={32} className="rounded-lg" />
+                            </div>
+
+                            {/* Right: round user avatar — mobile only (account / sign out) */}
+                            <div className="relative z-10 ml-auto flex items-center md:hidden">
+                                <UserMenu variant="avatar" />
+                            </div>
                         </div>
                     </header>
+                    {/* Spacer under fixed mobile top bar so content starts below it */}
+                    <div
+                        className="app-topbar-spacer shrink-0 md:hidden"
+                        aria-hidden
+                    />
                     <div className="min-h-0 flex-1 overflow-auto app-dotted-bg safe-pb safe-px">
                         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
                             <Outlet />

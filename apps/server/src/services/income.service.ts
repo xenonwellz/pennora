@@ -7,12 +7,24 @@ export class IncomeService extends BaseService {
         const targets = await this.income.findTargets(budgetId, yearMonth);
         const entries = await this.income.findEntries(budgetId, yearMonth);
 
-        return targets.map((target) => {
-            const targetEntries = entries.filter((e) => e.incomeTargetId === target.id);
-            // Raw sum (same-currency assumption for checkbox UI). Analytics converts properly.
-            const totalReceived = targetEntries.reduce((acc, e) => acc + e.amount, 0);
-            return { ...target, entries: targetEntries, totalReceived };
-        });
+        // Active (non-draft) earnings for the month view
+        return targets
+            .filter((target) => !target.isDraft)
+            .map((target) => {
+                const targetEntries = entries.filter((e) => e.incomeTargetId === target.id);
+                const totalReceived = targetEntries.reduce((acc, e) => acc + e.amount, 0);
+                return { ...target, entries: targetEntries, totalReceived };
+            });
+    }
+
+    listDrafts(budgetId: string) {
+        return this.income.findDrafts(budgetId);
+    }
+
+    async setDraft(budgetId: string, targetId: string, isDraft: boolean) {
+        const current = await this.income.findTargetById(budgetId, targetId);
+        if (!current) throw new ORPCError("NOT_FOUND", { message: "Income target not found" });
+        return this.income.setDraft(targetId, isDraft);
     }
 
     createTarget(
@@ -25,6 +37,7 @@ export class IncomeService extends BaseService {
             isRecurring?: boolean;
             frequencyMonths?: number;
             endsAtYearMonth?: string | null;
+            isDraft?: boolean;
         },
     ) {
         return this.income.createTarget(budgetId, data);

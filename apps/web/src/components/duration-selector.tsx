@@ -53,6 +53,11 @@ export function DurationSelector({ value, onChange, className }: DurationSelecto
                 >
                     <Select
                         value={mode}
+                        items={[
+                            { value: "year", label: MODE_LABELS.year },
+                            { value: "range", label: MODE_LABELS.range },
+                            { value: "all", label: MODE_LABELS.all },
+                        ]}
                         onValueChange={(v) => {
                             if (v === "year") onChange({ type: "year", year: currYear() });
                             else if (v === "all") onChange({ type: "all" });
@@ -64,8 +69,8 @@ export function DurationSelector({ value, onChange, className }: DurationSelecto
                                 });
                         }}
                     >
-                        <SelectTrigger className={cn(segmentTrigger, "px-3")}>
-                            <SelectValue>{MODE_LABELS[mode]}</SelectValue>
+                        <SelectTrigger className={cn(segmentTrigger, "max-w-full px-3")}>
+                            <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="year">Year</SelectItem>
@@ -81,9 +86,10 @@ export function DurationSelector({ value, onChange, className }: DurationSelecto
                         <div className="min-w-0 flex-[0.9]">
                             <Select
                                 value={String(value.year)}
+                                items={years.map((y) => ({ value: String(y), label: String(y) }))}
                                 onValueChange={(v) => onChange({ type: "year", year: Number(v) })}
                             >
-                                <SelectTrigger className={cn(segmentTrigger, "px-3")}>
+                                <SelectTrigger className={cn(segmentTrigger, "max-w-full px-3")}>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PanelCard, PanelCardContent, PanelCardHeader } from "@/components/panel-card";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -113,6 +114,7 @@ function SettingsPage() {
 function CategoriesSection() {
     const { data: categories, isLoading } = useCategories();
     const [name, setName] = useState("");
+    const [pending, setPending] = useState<{ id: string; name: string } | null>(null);
     const createCategory = useCreateCategory();
     const deleteCategory = useDeleteCategory();
 
@@ -160,7 +162,8 @@ function CategoriesSection() {
                                 <span className="text-sm">{c.name}</span>
                             </div>
                             <button
-                                onClick={() => deleteCategory.mutate(c.id)}
+                                type="button"
+                                onClick={() => setPending({ id: c.id, name: c.name })}
                                 className="size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                             >
                                 <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} className="size-4" />
@@ -173,6 +176,16 @@ function CategoriesSection() {
                     )}
                 </div>
             </PanelCardContent>
+            <ConfirmDialog
+                open={!!pending}
+                onOpenChange={(open) => !open && setPending(null)}
+                title="Delete category?"
+                description={pending ? `“${pending.name}” will be removed.` : undefined}
+                pending={deleteCategory.isPending}
+                onConfirm={async () => {
+                    if (pending) await deleteCategory.mutateAsync(pending.id);
+                }}
+            />
         </PanelCard>
     );
 }
@@ -180,6 +193,7 @@ function CategoriesSection() {
 function TagsSection() {
     const { data: tags, isLoading } = useTags();
     const [name, setName] = useState("");
+    const [pending, setPending] = useState<{ id: string; name: string } | null>(null);
     const createTag = useCreateTag();
     const deleteTag = useDeleteTag();
 
@@ -223,7 +237,8 @@ function TagsSection() {
                                 <span className="text-sm">{t.name}</span>
                             </div>
                             <button
-                                onClick={() => deleteTag.mutate(t.id)}
+                                type="button"
+                                onClick={() => setPending({ id: t.id, name: t.name })}
                                 className="size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                             >
                                 <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} className="size-4" />
@@ -236,6 +251,16 @@ function TagsSection() {
                     )}
                 </div>
             </PanelCardContent>
+            <ConfirmDialog
+                open={!!pending}
+                onOpenChange={(open) => !open && setPending(null)}
+                title="Delete tag?"
+                description={pending ? `“${pending.name}” will be removed.` : undefined}
+                pending={deleteTag.isPending}
+                onConfirm={async () => {
+                    if (pending) await deleteTag.mutateAsync(pending.id);
+                }}
+            />
         </PanelCard>
     );
 }
@@ -247,6 +272,7 @@ function MembersSection() {
     const removeMember = useRemoveBudgetMember();
     const [email, setEmail] = useState("");
     const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+    const [pendingRemove, setPendingRemove] = useState<{ id: string; email: string } | null>(null);
     const [error, setError] = useState("");
 
     const submit = async () => {
@@ -322,7 +348,10 @@ function MembersSection() {
                                 </p>
                             </div>
                             <button
-                                onClick={() => removeMember.mutate(member.id)}
+                                type="button"
+                                onClick={() =>
+                                    setPendingRemove({ id: member.id, email: member.email })
+                                }
                                 className="size-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
                             >
                                 <HugeiconsIcon icon={Delete01Icon} strokeWidth={2} className="size-4" />
@@ -337,6 +366,21 @@ function MembersSection() {
                     )}
                 </div>
             </PanelCardContent>
+            <ConfirmDialog
+                open={!!pendingRemove}
+                onOpenChange={(open) => !open && setPendingRemove(null)}
+                title="Remove collaborator?"
+                description={
+                    pendingRemove
+                        ? `${pendingRemove.email} will lose access to this budget.`
+                        : undefined
+                }
+                confirmLabel="Remove"
+                pending={removeMember.isPending}
+                onConfirm={async () => {
+                    if (pendingRemove) await removeMember.mutateAsync(pendingRemove.id);
+                }}
+            />
         </PanelCard>
     );
 }

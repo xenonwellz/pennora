@@ -50,7 +50,10 @@ export class AnalyticsService extends BaseService {
         const allItems = await this.budgetItems.findByMonth(budgetId, yearMonth);
         // Draft expenses are excluded from totals / charts until activated
         const items = allItems.filter((i) => !i.isDraft);
-        const incomeTargets = await this.income.findTargets(budgetId, yearMonth);
+        const allIncomeTargets = await this.income.findTargets(budgetId, yearMonth);
+        // Draft earnings (and their entries) stay out of totals until activated
+        const incomeTargets = allIncomeTargets.filter((t) => !t.isDraft);
+        const allIncomeTargetIds = new Set(allIncomeTargets.map((t) => t.id));
         const incomeEntries = await this.income.findEntries(budgetId, yearMonth);
 
         const categoryMap = new Map<
@@ -124,10 +127,10 @@ export class AnalyticsService extends BaseService {
             });
         }
 
-        // Orphan entries (no target) still count as received income
-        const linkedIds = new Set(incomeTargets.map((t) => t.id));
+        // Orphan entries (no target / deleted target) still count as received income.
+        // Entries linked to draft targets must not appear as orphans.
         const orphanReceivedNgn = incomeEntries
-            .filter((e) => !e.incomeTargetId || !linkedIds.has(e.incomeTargetId))
+            .filter((e) => !e.incomeTargetId || !allIncomeTargetIds.has(e.incomeTargetId))
             .reduce((s, e) => s + toNgn(e.amount, e.currency as Currency, rates), 0);
         if (orphanReceivedNgn > 0) {
             incomeGroups.push({

@@ -2,9 +2,24 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /** Wrapper around the table (scroll + chrome). Override to drop border when nested in a frame. */
+  containerClassName?: string
+}) {
   return (
-    <div className="relative w-full overflow-x-auto rounded-xl border border-border">
+    <div
+      data-slot="table-container"
+      className={cn(
+        "relative w-full overflow-x-auto",
+        // Default standalone chrome; pass containerClassName="" or custom to nest in DivideFrame
+        containerClassName === undefined && "rounded-xl border border-border",
+        containerClassName,
+      )}
+    >
       <table
         data-slot="table"
         className={cn("w-full caption-bottom text-sm", className)}
