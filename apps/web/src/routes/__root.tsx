@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/sidebar";
 import { Logo } from "@/components/logo";
 import { UserMenu } from "@/components/user-menu";
+import { AddToHomeBanner } from "@/components/add-to-home-banner";
 
 const PUBLIC_ROUTES = new Set(["/login", "/register", "/forgot-password", "/reset-password"]);
 const AUTH_ONLY_ROUTES = new Set(["/login", "/register", "/forgot-password", "/reset-password"]);
@@ -33,7 +34,12 @@ function Layout() {
         if (!isPublicRoute(pathname)) {
             return <Navigate to="/login" />;
         }
-        return <Outlet />;
+        return (
+            <>
+                <Outlet />
+                <AddToHomeBanner />
+            </>
+        );
     }
 
     if (AUTH_ONLY_ROUTES.has(pathname)) {
@@ -74,6 +80,7 @@ function Layout() {
                     </div>
                 </SidebarInset>
             </SidebarProvider>
+            <AddToHomeBanner />
         </TooltipProvider>
     );
 }
