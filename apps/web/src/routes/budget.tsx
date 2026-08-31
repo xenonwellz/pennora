@@ -1,7 +1,7 @@
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
-import { toNgn, computeCheckedUncheckedNet, normalizeExpenseSummaryItem, type BudgetMonthStatus, type Currency } from "@expense/shared";
+import { toNgn, computeBudgetMonthSummary, normalizeExpenseSummaryItem, type BudgetMonthStatus, type Currency } from "@expense/shared";
 import { orpc } from "../lib/clients/orpc";
 import {
     useBudgetItems,
@@ -63,7 +63,6 @@ import {
     MoneyAdd01Icon,
     Delete01Icon,
     RepeatIcon,
-    ArrowDown01Icon,
     MoreHorizontalIcon,
     CheckmarkCircle02Icon,
     Edit02Icon,
@@ -1066,33 +1065,6 @@ function BudgetPage() {
     );
 }
 
-/** One labeled metric row — amount right-aligned */
-function SummaryMetricRow({
-    label,
-    amount,
-    amountClassName,
-}: {
-    label: string;
-    amount: string;
-    amountClassName?: string;
-}) {
-    return (
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                {label}
-            </span>
-            <span
-                className={cn(
-                    "font-mono text-sm tabular-nums text-right",
-                    amountClassName ?? "text-foreground",
-                )}
-            >
-                {amount}
-            </span>
-        </div>
-    );
-}
-
 function BudgetSummary({
     incomes,
     items,
@@ -1108,156 +1080,97 @@ function BudgetSummary({
     }[] | undefined;
     usdBuyRate: number;
 }) {
-    const summary = computeCheckedUncheckedNet(
+    const summary = computeBudgetMonthSummary(
         (items ?? []).map((item) => normalizeExpenseSummaryItem(item)),
         incomes ?? [],
         usdBuyRate,
     );
-    const {
-        totalExpenses,
-        paidExpenses,
-        unpaidExpenses,
-        incomeAmount,
-        incomeReceived,
-        incomeOpen,
-        checkedNet,
-        uncheckedNet,
-    } = summary;
 
-    const hasData = incomeAmount > 0 || totalExpenses > 0;
+    const hasData = summary.plannedIncome > 0 || summary.totalExpenses > 0;
     if (!hasData) return null;
 
-    // Keep currency symbol on aggregated targets: / ₦100,000
-    const targetSuffix = (total: number) =>
-        total > 0 ? (
-            <span className="mt-0.5 block font-mono text-[11px] font-normal tabular-nums text-muted-foreground">
-                / {formatNGNFull(total)}
-            </span>
-        ) : null;
-
-    const showBreakdown = incomeAmount > 0 || totalExpenses > 0;
-    // Mobile: collapse checked/unchecked by default; always open on sm+
-    const [detailsOpen, setDetailsOpen] = useState(false);
+    const paidPct =
+        summary.totalExpenses > 0
+            ? Math.min(100, Math.round((summary.paid / summary.totalExpenses) * 100))
+            : 0;
 
     return (
         <div className="space-y-3 sm:space-y-4">
-            {/* Root totals — always visible */}
-            <DivideFrame className="divide-y divide-border">
-                <div className="grid grid-cols-2 divide-x divide-border">
+            <DivideFrame>
+                <DivideSectionLabel>This month so far</DivideSectionLabel>
+                <div className="space-y-3 px-4 py-3.5">
+                    {summary.totalExpenses > 0 && (
+                        <div className="space-y-2">
+                            <p className="text-sm text-muted-foreground">
+                                Paid{" "}
+                                <span className="font-mono font-semibold tabular-nums text-expense">
+                                    {formatNGNFull(summary.paid)}
+                                </span>
+                                {" of "}
+                                <span className="font-mono font-semibold tabular-nums text-foreground">
+                                    {formatNGNFull(summary.totalExpenses)}
+                                </span>
+                                {" expenses"}
+                            </p>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                <div
+                                    className="h-full rounded-full bg-expense transition-all duration-500"
+                                    style={{ width: `${paidPct}%` }}
+                                    role="progressbar"
+                                    aria-valuenow={paidPct}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-label={`${paidPct}% of expenses paid`}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {(summary.plannedIncome > 0 || summary.recordedIncome > 0) && (
+                        <p className="text-sm text-muted-foreground">
+                            Recorded{" "}
+                            <span className="font-mono font-semibold tabular-nums text-success">
+                                {formatNGNFull(summary.recordedIncome)}
+                            </span>
+                            {" in"}
+                        </p>
+                    )}
+                </div>
+            </DivideFrame>
+
+            <DivideFrame>
+                <DivideSectionLabel>Plan</DivideSectionLabel>
+                <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                     <div className="px-4 py-3.5">
                         <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                             Income
                         </p>
                         <p className="mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums text-success">
-                            {formatNGNFull(incomeReceived)}
+                            {formatNGNFull(summary.plannedIncome)}
                         </p>
-                        {targetSuffix(incomeAmount)}
                     </div>
                     <div className="px-4 py-3.5">
                         <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                             Expenses
                         </p>
                         <p className="mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums text-expense">
-                            {formatNGNFull(paidExpenses)}
+                            {formatNGNFull(summary.plannedExpenses)}
                         </p>
-                        {targetSuffix(totalExpenses)}
+                    </div>
+                    <div className="px-4 py-3.5">
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            Reserve
+                        </p>
+                        <p
+                            className={cn(
+                                "mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums",
+                                summary.reserve >= 0 ? "text-success" : "text-expense",
+                            )}
+                        >
+                            {formatNGNFull(summary.reserve)}
+                        </p>
                     </div>
                 </div>
-
-                {/* Mobile-only control to reveal checked / unchecked */}
-                {showBreakdown && (
-                    <button
-                        type="button"
-                        onClick={() => setDetailsOpen((o) => !o)}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:hidden"
-                        aria-expanded={detailsOpen}
-                    >
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            {detailsOpen ? "Hide details" : "Show details"}
-                        </span>
-                        <span className="flex items-center gap-2">
-                            {!detailsOpen && (
-                                <span
-                                    className={cn(
-                                        "font-mono text-xs font-semibold tabular-nums",
-                                        checkedNet >= 0 ? "text-success" : "text-expense",
-                                    )}
-                                >
-                                    {checkedNet >= 0 ? "+" : ""}
-                                    {formatNGNFull(checkedNet)}
-                                </span>
-                            )}
-                            <HugeiconsIcon
-                                icon={ArrowDown01Icon}
-                                strokeWidth={2}
-                                className={cn(
-                                    "size-4 text-muted-foreground transition-transform",
-                                    detailsOpen && "rotate-180",
-                                )}
-                            />
-                        </span>
-                    </button>
-                )}
             </DivideFrame>
-
-            {/* Checked / Unchecked — collapsed on mobile until opened */}
-            {showBreakdown && (
-                <div className={cn(detailsOpen ? "block" : "hidden sm:block")}>
-                    <DivideFrame>
-                        <div className="grid grid-cols-2 divide-x divide-border">
-                            <div className="divide-y divide-border min-w-0">
-                                <div className="px-4 py-2">
-                                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                                        Checked
-                                    </p>
-                                </div>
-                                <SummaryMetricRow
-                                    label="Received"
-                                    amount={formatNGNFull(incomeReceived)}
-                                />
-                                <SummaryMetricRow
-                                    label="Paid"
-                                    amount={`−${formatNGNFull(paidExpenses)}`}
-                                />
-                                <SummaryMetricRow
-                                    label="Net"
-                                    amount={`${checkedNet >= 0 ? "+" : ""}${formatNGNFull(checkedNet)}`}
-                                    amountClassName={
-                                        checkedNet >= 0
-                                            ? "font-semibold text-success"
-                                            : "font-semibold text-expense"
-                                    }
-                                />
-                            </div>
-
-                            <div className="divide-y divide-border min-w-0">
-                                <div className="px-4 py-2">
-                                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                                        Unchecked
-                                    </p>
-                                </div>
-                                <SummaryMetricRow
-                                    label="Open"
-                                    amount={formatNGNFull(incomeOpen)}
-                                />
-                                <SummaryMetricRow
-                                    label="Unpaid"
-                                    amount={`−${formatNGNFull(unpaidExpenses)}`}
-                                />
-                                <SummaryMetricRow
-                                    label="Net"
-                                    amount={`${uncheckedNet >= 0 ? "+" : ""}${formatNGNFull(uncheckedNet)}`}
-                                    amountClassName={
-                                        uncheckedNet >= 0
-                                            ? "font-semibold text-success"
-                                            : "font-semibold text-expense"
-                                    }
-                                />
-                            </div>
-                        </div>
-                    </DivideFrame>
-                </div>
-            )}
         </div>
     );
 }

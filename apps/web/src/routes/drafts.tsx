@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { toNgn, computeCheckedUncheckedNet, normalizeExpenseSummaryItem, type Currency } from "@expense/shared";
+import { toNgn, computeBudgetMonthSummary, normalizeExpenseSummaryItem, type Currency } from "@expense/shared";
 import { orpc } from "../lib/clients/orpc";
 import {
     useExpenseDrafts,
@@ -107,17 +107,17 @@ function amountToNgn(amount: number, currency: string, usdBuyRate: number): numb
     return toNgn(amount, currency as Currency, { usdBuyRate });
 }
 
-/** Unchecked net for a month: open income − unpaid expenses (active items only). */
-function computeUncheckedNet(
+/** Remaining room in the month plan for another unpaid expense (draft-fit helper). */
+function computeRemainingRoom(
     items: { amount: number; currency: string; amountPaid?: number; paid?: boolean; isDraft?: boolean }[] | undefined,
     incomes: IncomeTargetSummary[] | undefined,
     usdBuyRate: number,
 ): number {
-    return computeCheckedUncheckedNet(
+    return computeBudgetMonthSummary(
         (items ?? []).map((item) => normalizeExpenseSummaryItem(item)),
         incomes ?? [],
         usdBuyRate,
-    ).uncheckedNet;
+    ).remainingRoom;
 }
 
 function DraftsPage() {
@@ -150,7 +150,7 @@ function DraftsPage() {
         0,
     );
 
-    // Unchecked net per month (for "fits budget" indicator on expense drafts)
+    // Remaining plan room per month (for "fits budget" indicator on expense drafts)
     const yearMonths = useMemo(() => {
         const set = new Set<string>();
         for (const e of expenses ?? []) set.add(e.yearMonth);
@@ -159,7 +159,7 @@ function DraftsPage() {
 
     const monthRoomQueries = useQueries({
         queries: yearMonths.map((ym) => ({
-            queryKey: ["drafts", "unchecked-net", ym],
+            queryKey: ["drafts", "remaining-room", ym],
             queryFn: async () => {
                 const [items, incomes, rate] = await Promise.all([
                     orpc.budget.getBudgetItems({ yearMonth: ym }),
@@ -171,7 +171,7 @@ function DraftsPage() {
                 const rateBuy = rate?.usdBuyRate ?? usdBuyRate;
                 return {
                     ym,
-                    uncheckedNet: computeUncheckedNet(items, incomes, rateBuy),
+                    remainingRoom: computeRemainingRoom(items, incomes, rateBuy),
                     usdBuyRate: rateBuy,
                 };
             },
@@ -181,11 +181,11 @@ function DraftsPage() {
     });
 
     const roomByMonth = useMemo(() => {
-        const map = new Map<string, { uncheckedNet: number; usdBuyRate: number }>();
+        const map = new Map<string, { remainingRoom: number; usdBuyRate: number }>();
         for (const q of monthRoomQueries) {
             if (q.data) {
                 map.set(q.data.ym, {
-                    uncheckedNet: q.data.uncheckedNet,
+                    remainingRoom: q.data.remainingRoom,
                     usdBuyRate: q.data.usdBuyRate,
                 });
             }
@@ -197,9 +197,9 @@ function DraftsPage() {
         const room = roomByMonth.get(item.yearMonth);
         if (!room) return false;
         // Only when there is positive room and the draft is smaller than that room
-        if (room.uncheckedNet <= 0) return false;
+        if (room.remainingRoom <= 0) return false;
         const amountNgn = amountToNgn(item.amount, item.currency, room.usdBuyRate);
-        return room.uncheckedNet > amountNgn;
+        return room.remainingRoom > amountNgn;
     };
 
     return (
@@ -1162,7 +1162,7 @@ function DraftExpenseRow({
     yearMonth: string;
     category: string;
     pending: boolean;
-    /** Unchecked net for this month is greater than this draft amount */
+    /** Remaining plan room for this month is greater than this draft amount */
     canFit: boolean;
     onEdit: () => void;
     onActivate: () => void;
@@ -1203,7 +1203,7 @@ function DraftExpenseRow({
                                 <span className="text-muted-foreground/50">·</span>
                                 <span
                                     className="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success/10 px-1.5 py-0.5 font-medium text-success"
-                                    title="Unchecked room covers this draft — safe to activate"
+                                    title="Plan has room for this draft — safe to activate"
                                 >
                                     <HugeiconsIcon
                                         icon={Tick02Icon}
