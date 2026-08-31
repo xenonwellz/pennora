@@ -167,8 +167,13 @@ export class BudgetService extends BaseService {
         return this.budgetItems.setDraft(itemId, isDraft);
     }
 
-    getMonthItems(budgetId: string, yearMonth: string) {
-        return this.budgetItems.findByMonth(budgetId, yearMonth);
+    async getMonthItems(budgetId: string, yearMonth: string) {
+        const items = await this.budgetItems.findByMonth(budgetId, yearMonth);
+        return items.map((item) => ({
+            ...item,
+            // paid=true must win over amountPaid=0 (column default / unmigrated rows)
+            amountPaid: item.paid ? item.amount : item.amountPaid,
+        }));
     }
 
     listDrafts(budgetId: string) {
