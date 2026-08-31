@@ -1065,6 +1065,101 @@ function BudgetPage() {
     );
 }
 
+function MonthSummaryBar({
+    paid,
+    recorded,
+    total,
+}: {
+    paid: number;
+    recorded: number;
+    total: number;
+}) {
+    const scale = Math.max(paid, recorded, total, 1);
+    const rows = [
+        { label: "Paid", value: paid, barClass: "bg-expense", valueClass: "text-expense" },
+        { label: "Recorded", value: recorded, barClass: "bg-success", valueClass: "text-success" },
+        {
+            label: "Total",
+            value: total,
+            barClass: "bg-muted-foreground/35",
+            valueClass: "text-foreground",
+        },
+    ] as const;
+
+    return (
+        <div className="space-y-2.5" role="img" aria-label="Paid, recorded, and total expenses">
+            {rows.map((row) => {
+                const widthPct = Math.min(100, (row.value / scale) * 100);
+                return (
+                    <div key={row.label} className="flex items-center gap-3">
+                        <span className="w-[4.5rem] shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {row.label}
+                        </span>
+                        <div className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div
+                                className={cn(
+                                    "absolute inset-y-0 left-0 rounded-full transition-all duration-500",
+                                    row.barClass,
+                                )}
+                                style={{ width: `${widthPct}%` }}
+                            />
+                        </div>
+                        <span
+                            className={cn(
+                                "w-[5.5rem] shrink-0 text-right font-mono text-xs font-semibold tabular-nums sm:w-auto sm:min-w-[5.5rem]",
+                                row.valueClass,
+                            )}
+                        >
+                            {formatNGNFull(row.value)}
+                        </span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function PlanMetricColumn({
+    label,
+    planned,
+    actual,
+    plannedClassName,
+    actualClassName,
+}: {
+    label: string;
+    planned: number;
+    actual: number;
+    plannedClassName: string;
+    actualClassName: string;
+}) {
+    return (
+        <div className="px-4 py-3.5">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                {label}
+            </p>
+            <p
+                className={cn(
+                    "mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums",
+                    plannedClassName,
+                )}
+            >
+                {formatNGNFull(planned)}
+            </p>
+            <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Actual
+            </p>
+            <p
+                className={cn(
+                    "mt-1 font-mono text-sm font-semibold leading-none tabular-nums",
+                    actualClassName,
+                )}
+            >
+                {formatNGNFull(actual)}
+            </p>
+        </div>
+    );
+}
+
 function BudgetSummary({
     incomes,
     items,
@@ -1089,89 +1184,48 @@ function BudgetSummary({
     const hasData = summary.plannedIncome > 0 || summary.totalExpenses > 0;
     if (!hasData) return null;
 
-    const paidPct =
-        summary.totalExpenses > 0
-            ? Math.min(100, Math.round((summary.paid / summary.totalExpenses) * 100))
-            : 0;
+    const showBar =
+        summary.paid > 0 || summary.recordedIncome > 0 || summary.totalExpenses > 0;
 
     return (
-        <div className="space-y-3 sm:space-y-4">
-            <DivideFrame>
-                <DivideSectionLabel>This month so far</DivideSectionLabel>
-                <div className="space-y-3 px-4 py-3.5">
-                    {summary.totalExpenses > 0 && (
-                        <div className="space-y-2">
-                            <p className="text-sm text-muted-foreground">
-                                Paid{" "}
-                                <span className="font-mono font-semibold tabular-nums text-expense">
-                                    {formatNGNFull(summary.paid)}
-                                </span>
-                                {" of "}
-                                <span className="font-mono font-semibold tabular-nums text-foreground">
-                                    {formatNGNFull(summary.totalExpenses)}
-                                </span>
-                                {" expenses"}
-                            </p>
-                            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                                <div
-                                    className="h-full rounded-full bg-expense transition-all duration-500"
-                                    style={{ width: `${paidPct}%` }}
-                                    role="progressbar"
-                                    aria-valuenow={paidPct}
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
-                                    aria-label={`${paidPct}% of expenses paid`}
-                                />
-                            </div>
-                        </div>
-                    )}
-                    {(summary.plannedIncome > 0 || summary.recordedIncome > 0) && (
-                        <p className="text-sm text-muted-foreground">
-                            Recorded{" "}
-                            <span className="font-mono font-semibold tabular-nums text-success">
-                                {formatNGNFull(summary.recordedIncome)}
-                            </span>
-                            {" in"}
-                        </p>
-                    )}
+        <DivideFrame>
+            {showBar && (
+                <div className="px-4 py-3.5">
+                    <MonthSummaryBar
+                        paid={summary.paid}
+                        recorded={summary.recordedIncome}
+                        total={summary.totalExpenses}
+                    />
                 </div>
-            </DivideFrame>
+            )}
 
-            <DivideFrame>
+            <div className={cn(showBar && "border-t border-border")}>
                 <DivideSectionLabel>Plan</DivideSectionLabel>
                 <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                    <div className="px-4 py-3.5">
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            Income
-                        </p>
-                        <p className="mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums text-success">
-                            {formatNGNFull(summary.plannedIncome)}
-                        </p>
-                    </div>
-                    <div className="px-4 py-3.5">
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            Expenses
-                        </p>
-                        <p className="mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums text-expense">
-                            {formatNGNFull(summary.plannedExpenses)}
-                        </p>
-                    </div>
-                    <div className="px-4 py-3.5">
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            Reserve
-                        </p>
-                        <p
-                            className={cn(
-                                "mt-1.5 font-mono text-lg font-semibold leading-none tabular-nums",
-                                summary.reserve >= 0 ? "text-success" : "text-expense",
-                            )}
-                        >
-                            {formatNGNFull(summary.reserve)}
-                        </p>
-                    </div>
+                    <PlanMetricColumn
+                        label="Income"
+                        planned={summary.plannedIncome}
+                        actual={summary.recordedIncome}
+                        plannedClassName="text-success"
+                        actualClassName="text-success"
+                    />
+                    <PlanMetricColumn
+                        label="Expenses"
+                        planned={summary.plannedExpenses}
+                        actual={summary.paid}
+                        plannedClassName="text-expense"
+                        actualClassName="text-expense"
+                    />
+                    <PlanMetricColumn
+                        label="Reserve"
+                        planned={summary.reserve}
+                        actual={summary.actualReserve}
+                        plannedClassName={summary.reserve >= 0 ? "text-success" : "text-expense"}
+                        actualClassName={summary.actualReserve >= 0 ? "text-success" : "text-expense"}
+                    />
                 </div>
-            </DivideFrame>
-        </div>
+            </div>
+        </DivideFrame>
     );
 }
 
