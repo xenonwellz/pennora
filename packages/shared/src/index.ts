@@ -35,7 +35,9 @@ export {
     clampPaidAmount,
     computeExpensePaidTotals,
     computeIncomeReceived,
+    computeBudgetMonthSummary,
     computeCheckedUncheckedNet,
+    type BudgetMonthSummary,
     type ExpenseSummaryItem,
     type IncomeSummaryTarget,
 } from "./budget-summary";

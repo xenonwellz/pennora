@@ -97,29 +97,63 @@ export function computeIncomeReceived(
     return { incomeAmount, incomeReceived, incomeOpen };
 }
 
+export type BudgetMonthSummary = {
+    /** Planned expense total for the month (active items, non-draft). */
+    totalExpenses: number;
+    /** Sum of amount paid so far, including partials. */
+    paid: number;
+    /** Income actually received / logged. */
+    recordedIncome: number;
+    /** Planned income total for the month. */
+    plannedIncome: number;
+    /** Planned expense total (same as totalExpenses). */
+    plannedExpenses: number;
+    /** Planned income minus planned expenses — target leftover. */
+    reserve: number;
+    /** Room for more unpaid spend: open income − unpaid expenses (draft-fit helper). */
+    remainingRoom: number;
+};
+
+export function computeBudgetMonthSummary(
+    items: ExpenseSummaryItem[],
+    incomes: IncomeSummaryTarget[],
+    usdBuyRate: number,
+): BudgetMonthSummary {
+    const normalizedItems = items.map((item) => normalizeExpenseSummaryItem(item));
+    const expenseTotals = computeExpensePaidTotals(normalizedItems, usdBuyRate);
+    const incomeTotals = computeIncomeReceived(incomes, usdBuyRate);
+
+    const plannedIncome = incomeTotals.incomeAmount;
+    const plannedExpenses = expenseTotals.totalExpenses;
+    const reserve = plannedIncome - plannedExpenses;
+    const remainingRoom = incomeTotals.incomeOpen - expenseTotals.unpaidExpenses;
+
+    return {
+        totalExpenses: plannedExpenses,
+        paid: expenseTotals.paidExpenses,
+        recordedIncome: incomeTotals.incomeReceived,
+        plannedIncome,
+        plannedExpenses,
+        reserve,
+        remainingRoom,
+    };
+}
+
+/** @deprecated Use computeBudgetMonthSummary */
 export function computeCheckedUncheckedNet(
     items: ExpenseSummaryItem[],
     incomes: IncomeSummaryTarget[],
     usdBuyRate: number,
-): {
-    totalExpenses: number;
-    paidExpenses: number;
-    unpaidExpenses: number;
-    incomeAmount: number;
-    incomeReceived: number;
-    incomeOpen: number;
-    checkedNet: number;
-    uncheckedNet: number;
-} {
-    const expenseTotals = computeExpensePaidTotals(items, usdBuyRate);
-    const incomeTotals = computeIncomeReceived(incomes, usdBuyRate);
-    const checkedNet = incomeTotals.incomeReceived - expenseTotals.paidExpenses;
-    const uncheckedNet = incomeTotals.incomeOpen - expenseTotals.unpaidExpenses;
-
+) {
+    const summary = computeBudgetMonthSummary(items, incomes, usdBuyRate);
     return {
-        ...expenseTotals,
-        ...incomeTotals,
-        checkedNet,
-        uncheckedNet,
+        totalExpenses: summary.totalExpenses,
+        paidExpenses: summary.paid,
+        unpaidExpenses: summary.totalExpenses - summary.paid,
+        incomeAmount: summary.plannedIncome,
+        incomeReceived: summary.recordedIncome,
+        incomeOpen: summary.plannedIncome - summary.recordedIncome,
+        checkedNet: summary.recordedIncome - summary.paid,
+        uncheckedNet: summary.remainingRoom,
     };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
     clampPaidAmount,
-    computeCheckedUncheckedNet,
+    computeBudgetMonthSummary,
     computeExpensePaidTotals,
     expensePaidAmount,
     expenseUnpaidAmount,
@@ -82,13 +82,16 @@ describe("computeExpensePaidTotals", () => {
     });
 });
 
-describe("computeCheckedUncheckedNet", () => {
-    test("updates checked and unchecked nets with partial payments", () => {
-        const result = computeCheckedUncheckedNet(
-            [{ amount: 500_000, currency: "NGN", amountPaid: 100_000 }],
+describe("computeBudgetMonthSummary", () => {
+    test("returns planned totals, actuals, and reserve", () => {
+        const result = computeBudgetMonthSummary(
+            [
+                { amount: 500_000, currency: "NGN", amountPaid: 100_000 },
+                { amount: 300_000, currency: "NGN", amountPaid: 0 },
+            ],
             [
                 {
-                    amount: 260_000,
+                    amount: 1_000_000,
                     currency: "NGN",
                     totalReceived: 260_000,
                     entries: [{ amount: 260_000, currency: "NGN" }],
@@ -97,40 +100,56 @@ describe("computeCheckedUncheckedNet", () => {
             1,
         );
 
-        expect(result.paidExpenses).toBe(100_000);
-        expect(result.unpaidExpenses).toBe(400_000);
-        expect(result.incomeReceived).toBe(260_000);
-        expect(result.incomeOpen).toBe(0);
-        expect(result.checkedNet).toBe(160_000);
-        expect(result.uncheckedNet).toBe(-400_000);
+        expect(result.totalExpenses).toBe(800_000);
+        expect(result.plannedExpenses).toBe(800_000);
+        expect(result.paid).toBe(100_000);
+        expect(result.recordedIncome).toBe(260_000);
+        expect(result.plannedIncome).toBe(1_000_000);
+        expect(result.reserve).toBe(200_000);
+        expect(result.remainingRoom).toBe(40_000);
     });
 
-    test("partial payment moves PAID up and UNPAID down by the same delta", () => {
-        const before = computeCheckedUncheckedNet(
+    test("partial payment increases paid without changing planned totals", () => {
+        const before = computeBudgetMonthSummary(
             [{ amount: 500_000, currency: "NGN", paid: false, amountPaid: 0 }],
-            [],
+            [{ amount: 1_000_000, currency: "NGN", totalReceived: 0, entries: [] }],
             1,
         );
-        const after = computeCheckedUncheckedNet(
+        const after = computeBudgetMonthSummary(
             [{ amount: 500_000, currency: "NGN", paid: false, amountPaid: 50_000 }],
-            [],
+            [{ amount: 1_000_000, currency: "NGN", totalReceived: 0, entries: [] }],
             1,
         );
 
-        expect(after.paidExpenses - before.paidExpenses).toBe(50_000);
-        expect(before.unpaidExpenses - after.unpaidExpenses).toBe(50_000);
-        expect(before.checkedNet - after.checkedNet).toBe(50_000);
-        expect(after.uncheckedNet - before.uncheckedNet).toBe(50_000);
+        expect(after.paid - before.paid).toBe(50_000);
+        expect(before.totalExpenses - after.totalExpenses).toBe(0);
+        expect(before.plannedIncome).toBe(after.plannedIncome);
+        expect(before.reserve).toBe(after.reserve);
+        expect(after.remainingRoom - before.remainingRoom).toBe(50_000);
     });
 
     test("normalizes API rows with paid=true and amountPaid=0", () => {
-        const result = computeCheckedUncheckedNet(
+        const result = computeBudgetMonthSummary(
             [{ amount: 500_000, currency: "NGN", paid: true, amountPaid: 0 }],
             [],
             1,
         );
-        expect(result.paidExpenses).toBe(500_000);
-        expect(result.unpaidExpenses).toBe(0);
+        expect(result.paid).toBe(500_000);
+        expect(result.totalExpenses).toBe(500_000);
+    });
+
+    test("excludes draft expense items from totals", () => {
+        const result = computeBudgetMonthSummary(
+            [
+                { amount: 500_000, currency: "NGN", amountPaid: 500_000, isDraft: true },
+                { amount: 100_000, currency: "NGN", amountPaid: 25_000 },
+            ],
+            [],
+            1,
+        );
+        expect(result.totalExpenses).toBe(100_000);
+        expect(result.paid).toBe(25_000);
+        expect(result.plannedIncome).toBe(0);
     });
 });
 
