@@ -1,8 +1,31 @@
 import { ORPCError } from "@orpc/server";
-import { toNgn, type Currency, yearMonthRange, yearToRange, compareYearMonth } from "@expense/shared";
+import {
+    toNgn,
+    expensePaidAmount,
+    expenseUnpaidAmount,
+    type Currency,
+    yearMonthRange,
+    yearToRange,
+    compareYearMonth,
+} from "@expense/shared";
 import { BaseService } from "./base.service";
 
 type RateInfo = { usdBuyRate: number };
+
+type BudgetItemLike = {
+    amount: number;
+    currency: string;
+    amountPaid?: number;
+    paid?: boolean;
+};
+
+function paidAmountNgn(item: BudgetItemLike, rates: RateInfo): number {
+    return toNgn(expensePaidAmount(item), item.currency as Currency, rates);
+}
+
+function unpaidAmountNgn(item: BudgetItemLike, rates: RateInfo): number {
+    return toNgn(expenseUnpaidAmount(item), item.currency as Currency, rates);
+}
 
 type PeriodParams = {
     year?: number;
@@ -69,6 +92,7 @@ export class AnalyticsService extends BaseService {
                     amount: number;
                     currency: string;
                     amountNgn: number;
+                    amountPaid: number;
                     paid: boolean;
                     yearMonth: string;
                 }>;
@@ -96,6 +120,7 @@ export class AnalyticsService extends BaseService {
                 amount: item.amount,
                 currency: item.currency,
                 amountNgn,
+                amountPaid: expensePaidAmount(item),
                 paid: item.paid,
                 yearMonth: item.yearMonth,
             });
@@ -177,6 +202,7 @@ export class AnalyticsService extends BaseService {
 
         for (const ym of months) {
             const breakdown = await this.getMonthBreakdown(budgetId, ym);
+            const rates = await this.getRates(budgetId, ym);
             totalIncomeNgn += breakdown.totalIncomeNgn;
             totalIncomeTargetNgn += breakdown.totalIncomeTargetNgn;
             totalExpensesNgn += breakdown.totalExpensesNgn;
@@ -198,6 +224,8 @@ export class AnalyticsService extends BaseService {
                 categoryMap.set(key, existing);
 
                 for (const item of cat.items) {
+                    const paidNgn = toNgn(item.amountPaid, item.currency as Currency, rates);
+                    const unpaidNgn = item.amountNgn - paidNgn;
                     allItems.push({
                         id: item.id,
                         name: item.name,
@@ -206,13 +234,10 @@ export class AnalyticsService extends BaseService {
                         paid: item.paid,
                         yearMonth: item.yearMonth,
                     });
-                    if (item.paid) {
-                        paidExpensesNgn += item.amountNgn;
-                        paidCount += 1;
-                    } else {
-                        unpaidExpensesNgn += item.amountNgn;
-                        unpaidCount += 1;
-                    }
+                    paidExpensesNgn += paidNgn;
+                    unpaidExpensesNgn += unpaidNgn;
+                    if (item.paid) paidCount += 1;
+                    if (!item.paid) unpaidCount += 1;
                 }
             }
         }
@@ -310,19 +335,12 @@ export class AnalyticsService extends BaseService {
         const items = (await this.budgetItems.findByMonth(budgetId, yearMonth)).filter((i) => !i.isDraft);
         const rates = await this.getRates(budgetId, yearMonth);
 
-        const paidItems = items.filter((i) => i.paid);
-        const unpaidItems = items.filter((i) => !i.paid);
-
-        const paidExpensesNgn = paidItems.reduce(
-            (s, i) => s + toNgn(i.amount, i.currency as Currency, rates),
-            0,
-        );
-        const unpaidExpensesNgn = unpaidItems.reduce(
-            (s, i) => s + toNgn(i.amount, i.currency as Currency, rates),
-            0,
-        );
+        const paidExpensesNgn = items.reduce((s, i) => s + paidAmountNgn(i, rates), 0);
+        const unpaidExpensesNgn = items.reduce((s, i) => s + unpaidAmountNgn(i, rates), 0);
         const plannedExpensesNgn = breakdown.totalExpensesNgn;
         const incomeReceivedNgn = breakdown.totalIncomeNgn;
+
+        const unpaidItems = items.filter((i) => expenseUnpaidAmount(i) > 0);
 
         const topCategories = breakdown.expenses.slice(0, 5).map((c) => ({
             name: c.name,
@@ -347,7 +365,7 @@ export class AnalyticsService extends BaseService {
         const defaultedItems = unpaidItems.map((i) => ({
             id: i.id,
             name: i.name,
-            amountNgn: toNgn(i.amount, i.currency as Currency, rates),
+            amountNgn: unpaidAmountNgn(i, rates),
             categoryName: i.category?.name ?? "Uncategorized",
         }));
 
@@ -389,15 +407,11 @@ export class AnalyticsService extends BaseService {
 
         const status = (month?.status ?? "uninitialized") as "uninitialized" | "planning" | "completed";
 
-        const paidExpensesNgn = items
-            .filter((i) => i.paid)
-            .reduce((s, i) => s + toNgn(i.amount, i.currency as Currency, rates), 0);
-        const unpaidExpensesNgn = items
-            .filter((i) => !i.paid)
-            .reduce((s, i) => s + toNgn(i.amount, i.currency as Currency, rates), 0);
+        const paidExpensesNgn = items.reduce((s, i) => s + paidAmountNgn(i, rates), 0);
+        const unpaidExpensesNgn = items.reduce((s, i) => s + unpaidAmountNgn(i, rates), 0);
 
         const paidCount = items.filter((i) => i.paid).length;
-        const unpaidCount = items.filter((i) => !i.paid).length;
+        const unpaidCount = items.filter((i) => expenseUnpaidAmount(i) > 0).length;
         const defaultedCount = status === "completed" ? unpaidCount : 0;
 
         const categoryChart = breakdown.expenses.map((c) => ({

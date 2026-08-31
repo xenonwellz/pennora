@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { monthsBetween, compareYearMonth } from "@expense/shared";
+import { clampPaidAmount, monthsBetween, compareYearMonth } from "@expense/shared";
 import { BaseService } from "./base.service";
 
 export class BudgetService extends BaseService {
@@ -112,7 +112,11 @@ export class BudgetService extends BaseService {
             return this.budgetItems.findById(budgetId, itemId);
         }
 
-        return this.budgetItems.update(itemId, cleanPatch);
+        const updated = await this.budgetItems.update(itemId, cleanPatch);
+        if (updated && data.amount != null && updated.amountPaid > updated.amount) {
+            return this.budgetItems.setPaidAmount(itemId, updated.amount, updated.amount);
+        }
+        return updated;
     }
 
     async togglePaid(budgetId: string, itemId: string) {
@@ -124,7 +128,37 @@ export class BudgetService extends BaseService {
             });
         }
 
-        return this.budgetItems.togglePaid(itemId, !item.paid);
+        const isFullyPaid = item.amountPaid >= item.amount;
+        if (isFullyPaid) {
+            return this.budgetItems.togglePaid(itemId, false);
+        }
+        return this.budgetItems.togglePaid(itemId, true, item.amount);
+    }
+
+    async adjustPaidAmount(budgetId: string, itemId: string, delta: number) {
+        const item = await this.budgetItems.findById(budgetId, itemId);
+        if (!item) throw new ORPCError("NOT_FOUND", { message: "Budget item not found" });
+        if (item.isDraft) {
+            throw new ORPCError("BAD_REQUEST", {
+                message: "Activate the draft expense before recording a payment.",
+            });
+        }
+        if (delta === 0) {
+            throw new ORPCError("BAD_REQUEST", { message: "Payment adjustment must be non-zero." });
+        }
+
+        const currentPaid = item.amountPaid ?? (item.paid ? item.amount : 0);
+        const nextPaid = clampPaidAmount(item.amount, currentPaid, delta);
+        if (nextPaid === currentPaid) {
+            throw new ORPCError("BAD_REQUEST", {
+                message:
+                    delta > 0
+                        ? "Payment cannot exceed the remaining balance."
+                        : "Paid amount cannot go below zero.",
+            });
+        }
+
+        return this.budgetItems.setPaidAmount(itemId, nextPaid, item.amount);
     }
 
     async setDraft(budgetId: string, itemId: string, isDraft: boolean) {

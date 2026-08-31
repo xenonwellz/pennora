@@ -1,12 +1,13 @@
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
-import { toNgn, type BudgetMonthStatus, type Currency } from "@expense/shared";
+import { toNgn, computeCheckedUncheckedNet, type BudgetMonthStatus, type Currency } from "@expense/shared";
 import { orpc } from "../lib/clients/orpc";
 import {
     useBudgetItems,
     useIncomeTargets,
     useTogglePaid,
+    useAdjustPaidAmount,
     useSetItemDraft,
     useSetIncomeDraft,
     useAddBudgetItem,
@@ -53,6 +54,7 @@ import { PanelCard, PanelCardContent, PanelCardHeader } from "@/components/panel
 import { DivideFrame, DivideSectionLabel } from "@/components/divide-frame";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CategoryDrilldownDialog } from "@/components/category-drilldown-dialog";
+import { ExpensePaidControl } from "@/components/expense-paid-control";
 import { currMonth, formatCurrency, formatNGN, formatNGNFull, monthLabel, prevMonth, computeRecurringEndOptions, cn } from "../lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -81,6 +83,7 @@ type UnifiedRow =
         amount: number;
         currency: string;
         paid: boolean;
+        amountPaid: number;
         isDraft: boolean;
         isRecurring: boolean;
         defaulted?: boolean;
@@ -120,6 +123,7 @@ function buildUnifiedRows(
         amount: number;
         currency: string;
         paid: boolean;
+        amountPaid?: number;
         isDraft?: boolean;
         isRecurring: boolean;
         categoryId?: string | null;
@@ -147,10 +151,11 @@ function buildUnifiedRows(
 
     // Drafts live on /drafts — main budget list is active items only
     const active = items?.filter((i) => !i.isDraft) ?? [];
-    const unpaid = active.filter((i) => !i.paid);
-    const paid = active.filter((i) => i.paid);
+    const unpaid = active.filter((i) => (i.amountPaid ?? 0) < i.amount);
+    const paid = active.filter((i) => (i.amountPaid ?? 0) >= i.amount);
 
     for (const item of [...unpaid, ...paid]) {
+        const amountPaid = item.amountPaid ?? (item.paid ? item.amount : 0);
         rows.push({
             kind: "expense",
             id: item.id,
@@ -159,10 +164,11 @@ function buildUnifiedRows(
             category: item.category?.name ?? "Uncategorized",
             amount: item.amount,
             currency: item.currency,
-            paid: item.paid,
+            paid: amountPaid >= item.amount,
+            amountPaid,
             isDraft: false,
             isRecurring: item.isRecurring,
-            defaulted: isCompleted && !item.paid,
+            defaulted: isCompleted && amountPaid < item.amount,
         });
     }
 
@@ -350,6 +356,7 @@ function BudgetPage() {
     const completeMonth = useCompleteMonth();
     const queryClient = useQueryClient();
     const togglePaid = useTogglePaid();
+    const adjustPaidAmount = useAdjustPaidAmount();
     const setItemDraft = useSetItemDraft();
     const setIncomeDraft = useSetIncomeDraft();
     const deleteItem = useDeleteBudgetItem();
@@ -360,6 +367,7 @@ function BudgetPage() {
 
     const isRowTogglePending = (id: string) =>
         (togglePaid.isPending && togglePaid.variables === id) ||
+        (adjustPaidAmount.isPending && adjustPaidAmount.variables?.id === id) ||
         (addIncomeEntry.isPending &&
             addIncomeEntry.variables?.incomeTargetId === id);
 
@@ -643,6 +651,9 @@ function BudgetPage() {
                                                     readOnly={isReadOnly}
                                                     togglePending={isRowTogglePending(row.id)}
                                                     onTogglePaid={() => togglePaid.mutate(row.id)}
+                                                    onAdjustPaid={(delta) =>
+                                                        adjustPaidAmount.mutate({ id: row.id, delta })
+                                                    }
                                                     onToggleIncome={() => {
                                                         if (row.kind === "income-target") {
                                                             handleToggleIncome(
@@ -738,6 +749,9 @@ function BudgetPage() {
                                                         readOnly={isReadOnly}
                                                         togglePending={isRowTogglePending(row.id)}
                                                         onTogglePaid={() => togglePaid.mutate(row.id)}
+                                                    onAdjustPaid={(delta) =>
+                                                        adjustPaidAmount.mutate({ id: row.id, delta })
+                                                    }
                                                         onToggleIncome={() => {
                                                             if (row.kind === "income-target") {
                                                                 handleToggleIncome(
@@ -1077,39 +1091,23 @@ function BudgetSummary({
     items: {
         amount: number;
         currency: string;
-        paid: boolean;
+        amountPaid?: number;
+        paid?: boolean;
         isDraft?: boolean;
     }[] | undefined;
     usdBuyRate: number;
 }) {
-    // Always normalize to NGN so mixed USD/NGN lines sum correctly
-    const activeItems = items?.filter((i) => !i.isDraft) ?? [];
-
-    const totalExpenses = activeItems.reduce(
-        (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
-        0,
-    );
-    const paidExpenses = activeItems
-        .filter((i) => i.paid)
-        .reduce((sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate), 0);
-    const unpaidExpenses = totalExpenses - paidExpenses;
-
-    const incomeAmount = (incomes ?? []).reduce(
-        (sum, t) => sum + amountToNgn(t.amount, t.currency, usdBuyRate),
-        0,
-    );
-    const incomeReceived = (incomes ?? []).reduce((sum, t) => {
-        const fromEntries = t.entries.reduce(
-            (s, e) => s + amountToNgn(e.amount, e.currency, usdBuyRate),
-            0,
-        );
-        // Prefer entry-level conversion; fall back to raw total if no entries
-        return sum + (t.entries.length > 0 ? fromEntries : amountToNgn(t.totalReceived, t.currency, usdBuyRate));
-    }, 0);
-
-    const incomeOpen = Math.max(0, incomeAmount - incomeReceived);
-    const checkedNet = incomeReceived - paidExpenses;
-    const uncheckedNet = incomeOpen - unpaidExpenses;
+    const summary = computeCheckedUncheckedNet(items ?? [], incomes ?? [], usdBuyRate);
+    const {
+        totalExpenses,
+        paidExpenses,
+        unpaidExpenses,
+        incomeAmount,
+        incomeReceived,
+        incomeOpen,
+        checkedNet,
+        uncheckedNet,
+    } = summary;
 
     const hasData = incomeAmount > 0 || totalExpenses > 0;
     if (!hasData) return null;
@@ -1421,8 +1419,10 @@ function getUnifiedRowMeta(row: UnifiedRow) {
     const isExpense = row.kind === "expense";
     const isIncome = row.kind !== "expense";
     const isDraft = isExpense && row.isDraft;
-    const paid = isExpense && row.paid && !row.isDraft;
-    const defaulted = isExpense && row.defaulted && !row.paid && !row.isDraft;
+    const isFullyPaid = isExpense && row.amountPaid >= row.amount && !row.isDraft;
+    const isPartial = isExpense && row.amountPaid > 0 && row.amountPaid < row.amount && !row.isDraft;
+    const paid = isFullyPaid;
+    const defaulted = isExpense && row.defaulted && row.amountPaid < row.amount && !row.isDraft;
 
     const typeLabel = isExpense ? "Expense" : "Income";
     const categoryOrSource = isExpense ? row.category : row.source;
@@ -1433,12 +1433,15 @@ function getUnifiedRowMeta(row: UnifiedRow) {
         if (row.isDraft) {
             statusLabel = "Draft";
             statusClass = "text-muted-foreground";
-        } else if (row.defaulted && !row.paid) {
-            statusLabel = "Defaulted";
+        } else if (row.defaulted && row.amountPaid < row.amount) {
+            statusLabel = isPartial ? "Partial · defaulted" : "Defaulted";
             statusClass = "text-[var(--color-warning)]";
-        } else if (row.paid) {
+        } else if (isFullyPaid) {
             statusLabel = "Paid";
             statusClass = "text-[var(--color-success)]";
+        } else if (isPartial) {
+            statusLabel = "Partial";
+            statusClass = "text-[var(--color-warning)]";
         } else {
             statusLabel = "Unpaid";
             statusClass = "text-muted-foreground";
@@ -1484,6 +1487,7 @@ type UnifiedBudgetRowProps = {
     readOnly: boolean;
     togglePending?: boolean;
     onTogglePaid: () => void;
+    onAdjustPaid: (delta: number) => void;
     onToggleIncome: () => void;
     onDeleteExpense: () => void;
     onDeleteIncomeEntry: () => void;
@@ -1516,35 +1520,33 @@ function BudgetRowCheckbox({
     readOnly,
     togglePending,
     onTogglePaid,
+    onAdjustPaid,
     onToggleIncome,
 }: Pick<
     UnifiedBudgetRowProps,
-    "row" | "readOnly" | "togglePending" | "onTogglePaid" | "onToggleIncome"
+    "row" | "readOnly" | "togglePending" | "onTogglePaid" | "onAdjustPaid" | "onToggleIncome"
 >) {
     const { isExpense, isIncome, isDraft } = getUnifiedRowMeta(row);
 
-    if (togglePending) {
-        return <CheckboxLoading />;
+    if (isExpense && row.kind === "expense") {
+        return (
+            <ExpensePaidControl
+                id={row.id}
+                name={row.name}
+                amount={row.amount}
+                currency={row.currency}
+                amountPaid={row.amountPaid}
+                isDraft={isDraft}
+                readOnly={readOnly}
+                pending={togglePending}
+                onTogglePaid={onTogglePaid}
+                onAdjustPaid={onAdjustPaid}
+            />
+        );
     }
 
-    if (isExpense) {
-        if (isDraft) {
-            return (
-                <div
-                    className="size-5 shrink-0 rounded-[3px] border-2 border-dashed border-border bg-background"
-                    title="Draft — activate to track"
-                />
-            );
-        }
-        return !readOnly ? (
-            <Checkbox
-                checked={row.kind === "expense" && row.paid}
-                onCheckedChange={onTogglePaid}
-                className="size-5"
-            />
-        ) : (
-            <div className={`size-3 rounded-full ${row.kind === "expense" && row.paid ? "bg-success" : "bg-muted-foreground/30"}`} />
-        );
+    if (togglePending) {
+        return <CheckboxLoading />;
     }
 
     if (isIncome && row.kind === "income-target") {
@@ -1688,6 +1690,7 @@ function UnifiedBudgetCard({
     readOnly,
     togglePending,
     onTogglePaid,
+    onAdjustPaid,
     onToggleIncome,
     onDeleteExpense,
     onDeleteIncomeEntry,
@@ -1715,6 +1718,7 @@ function UnifiedBudgetCard({
                     readOnly={readOnly}
                     togglePending={togglePending}
                     onTogglePaid={onTogglePaid}
+                    onAdjustPaid={onAdjustPaid}
                     onToggleIncome={onToggleIncome}
                 />
                 <div className="min-w-0 flex-1 flex items-center gap-1.5">
@@ -1802,6 +1806,7 @@ function UnifiedBudgetRow({
     readOnly,
     togglePending,
     onTogglePaid,
+    onAdjustPaid,
     onToggleIncome,
     onDeleteExpense,
     onDeleteIncomeEntry,
@@ -1823,6 +1828,7 @@ function UnifiedBudgetRow({
                         readOnly={readOnly}
                         togglePending={togglePending}
                         onTogglePaid={onTogglePaid}
+                        onAdjustPaid={onAdjustPaid}
                         onToggleIncome={onToggleIncome}
                     />
                     <div className="min-w-0 flex items-center gap-1.5">

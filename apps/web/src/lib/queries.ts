@@ -49,6 +49,7 @@ export interface BudgetItem {
     amount: number;
     currency: string;
     paid: boolean;
+    amountPaid: number;
     isDraft: boolean;
     isRecurring: boolean;
     categoryId: string | null;
@@ -162,6 +163,17 @@ export function useTogglePaid() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => orpc.budget.togglePaid({ id }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["budget"] });
+            qc.invalidateQueries({ queryKey: ["analytics"] });
+        },
+    });
+}
+
+export function useAdjustPaidAmount() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (data: { id: string; delta: number }) => orpc.budget.adjustPaidAmount(data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["budget"] });
             qc.invalidateQueries({ queryKey: ["analytics"] });

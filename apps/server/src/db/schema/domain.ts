@@ -136,6 +136,8 @@ export const budgetItems = pgTable("budget_items", {
     frequencyMonths: integer("frequency_months").notNull().default(1),
     endsAtYearMonth: text("ends_at_year_month"),
     paid: boolean("paid").notNull().default(false),
+    /** Amount paid so far (0 = unpaid, equals amount when fully paid). */
+    amountPaid: real("amount_paid").notNull().default(0),
     paidAt: timestamp("paid_at"),
     /** Draft items are planned later — excluded from totals until activated. */
     isDraft: boolean("is_draft").notNull().default(false),

@@ -27,3 +27,14 @@ export {
     currMonth,
     currYear,
 } from "./year-month";
+
+export {
+    expensePaidAmount,
+    expenseUnpaidAmount,
+    clampPaidAmount,
+    computeExpensePaidTotals,
+    computeIncomeReceived,
+    computeCheckedUncheckedNet,
+    type ExpenseSummaryItem,
+    type IncomeSummaryTarget,
+} from "./budget-summary";

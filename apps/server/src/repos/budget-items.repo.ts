@@ -95,6 +95,7 @@ export class BudgetItemsRepo {
             endsAtYearMonth: string | null;
             isDraft: boolean;
             paid: boolean;
+            amountPaid: number;
             paidAt: Date | null;
         }>,
     ) {
@@ -140,14 +141,34 @@ export class BudgetItemsRepo {
             .then((r) => r[0] ?? null);
     }
 
-    togglePaid(id: string, paid: boolean) {
+    togglePaid(id: string, paid: boolean, amount?: number) {
+        const now = new Date();
         return db
             .update(budgetItems)
             .set({
                 paid,
-                paidAt: paid ? new Date() : null,
+                amountPaid: paid ? (amount ?? 0) : 0,
+                paidAt: paid ? now : null,
                 // Activating paid clears draft
                 ...(paid ? { isDraft: false } : {}),
+                updatedAt: now,
+            })
+            .where(eq(budgetItems.id, id))
+            .returning()
+            .then((r) => r[0]);
+    }
+
+    setPaidAmount(id: string, amountPaid: number, amount: number) {
+        const paid = amountPaid >= amount;
+        const now = new Date();
+        return db
+            .update(budgetItems)
+            .set({
+                amountPaid,
+                paid,
+                paidAt: amountPaid > 0 ? now : null,
+                ...(amountPaid > 0 ? { isDraft: false } : {}),
+                updatedAt: now,
             })
             .where(eq(budgetItems.id, id))
             .returning()
@@ -160,7 +181,7 @@ export class BudgetItemsRepo {
             .set({
                 isDraft,
                 // Drafts are never paid
-                ...(isDraft ? { paid: false, paidAt: null } : {}),
+                ...(isDraft ? { paid: false, amountPaid: 0, paidAt: null } : {}),
                 updatedAt: new Date(),
             })
             .where(eq(budgetItems.id, id))
