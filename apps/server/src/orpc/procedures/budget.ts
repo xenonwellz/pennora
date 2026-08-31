@@ -76,6 +76,16 @@ export const togglePaid = authorized
         return budget.togglePaid(budgetId, input.id);
     });
 
+export const adjustPaidAmount = authorized
+    .input(z.object({ id: z.string(), delta: z.number() }))
+    .handler(async ({ context, input }) => {
+        const budgetId = budgetGuard(context.user.activeBudgetId);
+        const item = await budget.getItem(budgetId, input.id);
+        if (!item) throw new ORPCError("NOT_FOUND", { message: "Budget item not found" });
+        await months.requirePlanning(budgetId, item.yearMonth);
+        return budget.adjustPaidAmount(budgetId, input.id, input.delta);
+    });
+
 export const setItemDraft = authorized
     .input(z.object({ id: z.string(), isDraft: z.boolean() }))
     .handler(async ({ context, input }) => {

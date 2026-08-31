@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { toNgn, type Currency } from "@expense/shared";
+import { toNgn, computeCheckedUncheckedNet, type Currency } from "@expense/shared";
 import { orpc } from "../lib/clients/orpc";
 import {
     useExpenseDrafts,
@@ -109,39 +109,11 @@ function amountToNgn(amount: number, currency: string, usdBuyRate: number): numb
 
 /** Unchecked net for a month: open income − unpaid expenses (active items only). */
 function computeUncheckedNet(
-    items: { amount: number; currency: string; paid: boolean; isDraft?: boolean }[] | undefined,
+    items: { amount: number; currency: string; amountPaid?: number; paid?: boolean; isDraft?: boolean }[] | undefined,
     incomes: IncomeTargetSummary[] | undefined,
     usdBuyRate: number,
 ): number {
-    const active = (items ?? []).filter((i) => !i.isDraft);
-    const totalExpenses = active.reduce(
-        (sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate),
-        0,
-    );
-    const paidExpenses = active
-        .filter((i) => i.paid)
-        .reduce((sum, i) => sum + amountToNgn(i.amount, i.currency, usdBuyRate), 0);
-    const unpaidExpenses = totalExpenses - paidExpenses;
-
-    const incomeAmount = (incomes ?? []).reduce(
-        (sum, t) => sum + amountToNgn(t.amount, t.currency, usdBuyRate),
-        0,
-    );
-    const incomeReceived = (incomes ?? []).reduce((sum, t) => {
-        const fromEntries = (t.entries ?? []).reduce(
-            (s, e) => s + amountToNgn(e.amount, e.currency, usdBuyRate),
-            0,
-        );
-        return (
-            sum +
-            (t.entries?.length
-                ? fromEntries
-                : amountToNgn(t.totalReceived ?? 0, t.currency, usdBuyRate))
-        );
-    }, 0);
-
-    const incomeOpen = Math.max(0, incomeAmount - incomeReceived);
-    return incomeOpen - unpaidExpenses;
+    return computeCheckedUncheckedNet(items ?? [], incomes ?? [], usdBuyRate).uncheckedNet;
 }
 
 function DraftsPage() {
