@@ -29,6 +29,7 @@ export {
 } from "./year-month";
 
 export {
+    normalizeExpenseSummaryItem,
     expensePaidAmount,
     expenseUnpaidAmount,
     clampPaidAmount,

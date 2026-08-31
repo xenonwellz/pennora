@@ -1,7 +1,7 @@
 import { createFileRoute, useSearch, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
-import { toNgn, computeCheckedUncheckedNet, type BudgetMonthStatus, type Currency } from "@expense/shared";
+import { toNgn, computeCheckedUncheckedNet, normalizeExpenseSummaryItem, type BudgetMonthStatus, type Currency } from "@expense/shared";
 import { orpc } from "../lib/clients/orpc";
 import {
     useBudgetItems,
@@ -110,6 +110,17 @@ type UnifiedRow =
 
 function formatAmount(amount: number, currency: string) {
     return formatCurrency(amount, currency);
+}
+
+function formatExpenseAmountDisplay(amount: number, currency: string, amountPaid: number) {
+    const isPartial = amountPaid > 0 && amountPaid < amount;
+    if (!isPartial) return formatAmount(amount, currency);
+    return (
+        <>
+            <span className="text-expense">{formatAmount(amountPaid, currency)}</span>
+            <span className="text-muted-foreground"> / {formatAmount(amount, currency)}</span>
+        </>
+    );
 }
 
 function amountToNgn(amount: number, currency: string, usdBuyRate: number): number {
@@ -1097,7 +1108,11 @@ function BudgetSummary({
     }[] | undefined;
     usdBuyRate: number;
 }) {
-    const summary = computeCheckedUncheckedNet(items ?? [], incomes ?? [], usdBuyRate);
+    const summary = computeCheckedUncheckedNet(
+        (items ?? []).map((item) => normalizeExpenseSummaryItem(item)),
+        incomes ?? [],
+        usdBuyRate,
+    );
     const {
         totalExpenses,
         paidExpenses,
@@ -1744,7 +1759,9 @@ function UnifiedBudgetCard({
                         meta.isIncome && "text-success",
                     )}
                 >
-                    {formatAmount(row.amount, row.currency)}
+                    {meta.isExpense && row.kind === "expense"
+                        ? formatExpenseAmountDisplay(row.amount, row.currency, row.amountPaid)
+                        : formatAmount(row.amount, row.currency)}
                 </span>
             </div>
 
@@ -1865,7 +1882,9 @@ function UnifiedBudgetRow({
             </TableCell>
             <TableCell className="text-right">
                 <span className={`font-mono text-sm font-medium ${meta.isIncome ? "text-success" : ""}`}>
-                    {formatAmount(row.amount, row.currency)}
+                    {meta.isExpense && row.kind === "expense"
+                        ? formatExpenseAmountDisplay(row.amount, row.currency, row.amountPaid)
+                        : formatAmount(row.amount, row.currency)}
                 </span>
             </TableCell>
             <TableCell className="text-right">

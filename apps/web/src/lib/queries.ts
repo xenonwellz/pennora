@@ -163,7 +163,16 @@ export function useTogglePaid() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => orpc.budget.togglePaid({ id }),
-        onSuccess: () => {
+        onSuccess: (updated) => {
+            if (updated?.yearMonth) {
+                qc.setQueryData<BudgetItem[]>(
+                    ["budget", "items", updated.yearMonth],
+                    (items) =>
+                        items?.map((item) =>
+                            item.id === updated.id ? { ...item, ...updated } : item,
+                        ),
+                );
+            }
             qc.invalidateQueries({ queryKey: ["budget"] });
             qc.invalidateQueries({ queryKey: ["analytics"] });
         },
@@ -174,7 +183,16 @@ export function useAdjustPaidAmount() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (data: { id: string; delta: number }) => orpc.budget.adjustPaidAmount(data),
-        onSuccess: () => {
+        onSuccess: (updated) => {
+            if (updated?.yearMonth) {
+                qc.setQueryData<BudgetItem[]>(
+                    ["budget", "items", updated.yearMonth],
+                    (items) =>
+                        items?.map((item) =>
+                            item.id === updated.id ? { ...item, ...updated } : item,
+                        ),
+                );
+            }
             qc.invalidateQueries({ queryKey: ["budget"] });
             qc.invalidateQueries({ queryKey: ["analytics"] });
         },

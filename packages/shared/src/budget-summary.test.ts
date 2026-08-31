@@ -5,6 +5,7 @@ import {
     computeExpensePaidTotals,
     expensePaidAmount,
     expenseUnpaidAmount,
+    normalizeExpenseSummaryItem,
 } from "./budget-summary";
 
 describe("clampPaidAmount", () => {
@@ -35,6 +36,18 @@ describe("expensePaidAmount", () => {
     test("falls back to paid boolean for legacy rows", () => {
         expect(expensePaidAmount({ amount: 500_000, currency: "NGN", paid: true })).toBe(500_000);
         expect(expensePaidAmount({ amount: 500_000, currency: "NGN", paid: false })).toBe(0);
+    });
+
+    test("paid=true with amountPaid=0 uses full amount (API default)", () => {
+        expect(
+            expensePaidAmount({ amount: 500_000, currency: "NGN", paid: true, amountPaid: 0 }),
+        ).toBe(500_000);
+    });
+
+    test("partial amountPaid is used when not fully paid", () => {
+        expect(
+            expensePaidAmount({ amount: 500_000, currency: "NGN", paid: false, amountPaid: 50_000 }),
+        ).toBe(50_000);
     });
 
     test("caps amountPaid at item total", () => {
@@ -90,6 +103,45 @@ describe("computeCheckedUncheckedNet", () => {
         expect(result.incomeOpen).toBe(0);
         expect(result.checkedNet).toBe(160_000);
         expect(result.uncheckedNet).toBe(-400_000);
+    });
+
+    test("partial payment moves PAID up and UNPAID down by the same delta", () => {
+        const before = computeCheckedUncheckedNet(
+            [{ amount: 500_000, currency: "NGN", paid: false, amountPaid: 0 }],
+            [],
+            1,
+        );
+        const after = computeCheckedUncheckedNet(
+            [{ amount: 500_000, currency: "NGN", paid: false, amountPaid: 50_000 }],
+            [],
+            1,
+        );
+
+        expect(after.paidExpenses - before.paidExpenses).toBe(50_000);
+        expect(before.unpaidExpenses - after.unpaidExpenses).toBe(50_000);
+        expect(before.checkedNet - after.checkedNet).toBe(50_000);
+        expect(after.uncheckedNet - before.uncheckedNet).toBe(50_000);
+    });
+
+    test("normalizes API rows with paid=true and amountPaid=0", () => {
+        const result = computeCheckedUncheckedNet(
+            [{ amount: 500_000, currency: "NGN", paid: true, amountPaid: 0 }],
+            [],
+            1,
+        );
+        expect(result.paidExpenses).toBe(500_000);
+        expect(result.unpaidExpenses).toBe(0);
+    });
+});
+
+describe("normalizeExpenseSummaryItem", () => {
+    test("coerces snake_case amount_paid", () => {
+        const normalized = normalizeExpenseSummaryItem({
+            amount: 500_000,
+            currency: "NGN",
+            amount_paid: 75_000,
+        });
+        expect(normalized.amountPaid).toBe(75_000);
     });
 });
 

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { toNgn, computeCheckedUncheckedNet, type Currency } from "@expense/shared";
+import { toNgn, computeCheckedUncheckedNet, normalizeExpenseSummaryItem, type Currency } from "@expense/shared";
 import { orpc } from "../lib/clients/orpc";
 import {
     useExpenseDrafts,
@@ -113,7 +113,11 @@ function computeUncheckedNet(
     incomes: IncomeTargetSummary[] | undefined,
     usdBuyRate: number,
 ): number {
-    return computeCheckedUncheckedNet(items ?? [], incomes ?? [], usdBuyRate).uncheckedNet;
+    return computeCheckedUncheckedNet(
+        (items ?? []).map((item) => normalizeExpenseSummaryItem(item)),
+        incomes ?? [],
+        usdBuyRate,
+    ).uncheckedNet;
 }
 
 function DraftsPage() {

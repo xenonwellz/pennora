@@ -15,10 +15,25 @@ export type IncomeSummaryTarget = {
     entries?: { amount: number; currency: string }[];
 };
 
+/** Coerce API/DB shapes into a consistent expense summary item. */
+export function normalizeExpenseSummaryItem(
+    item: ExpenseSummaryItem & { amount_paid?: number },
+): ExpenseSummaryItem {
+    const rawPaid = item.amountPaid ?? item.amount_paid ?? 0;
+    const amountPaid = item.paid ? item.amount : rawPaid;
+    const capped = Math.min(Math.max(0, amountPaid), item.amount);
+    return {
+        ...item,
+        amountPaid: capped,
+        paid: item.paid === true || capped >= item.amount,
+    };
+}
+
 export function expensePaidAmount(item: ExpenseSummaryItem): number {
-    if (item.isDraft) return 0;
-    if (item.amountPaid != null) return Math.min(item.amountPaid, item.amount);
-    return item.paid ? item.amount : 0;
+    const normalized = normalizeExpenseSummaryItem(item);
+    if (normalized.isDraft) return 0;
+    if (normalized.paid) return normalized.amount;
+    return normalized.amountPaid ?? 0;
 }
 
 export function expenseUnpaidAmount(item: ExpenseSummaryItem): number {
@@ -42,8 +57,11 @@ export function computeExpensePaidTotals(
     let paidExpenses = 0;
 
     for (const item of active) {
-        const totalNgn = toNgn(item.amount, item.currency as Currency, { usdBuyRate });
-        const paidNgn = toNgn(expensePaidAmount(item), item.currency as Currency, { usdBuyRate });
+        const normalized = normalizeExpenseSummaryItem(item);
+        const totalNgn = toNgn(normalized.amount, normalized.currency as Currency, { usdBuyRate });
+        const paidNgn = toNgn(expensePaidAmount(normalized), normalized.currency as Currency, {
+            usdBuyRate,
+        });
         totalExpenses += totalNgn;
         paidExpenses += paidNgn;
     }
