@@ -106,6 +106,7 @@ describe("computeBudgetMonthSummary", () => {
         expect(result.recordedIncome).toBe(260_000);
         expect(result.plannedIncome).toBe(1_000_000);
         expect(result.reserve).toBe(200_000);
+        expect(result.actualReserve).toBe(160_000);
         expect(result.remainingRoom).toBe(40_000);
     });
 

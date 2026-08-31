@@ -110,6 +110,8 @@ export type BudgetMonthSummary = {
     plannedExpenses: number;
     /** Planned income minus planned expenses — target leftover. */
     reserve: number;
+    /** Cash extra so far: recorded income minus paid expenses. */
+    actualReserve: number;
     /** Room for more unpaid spend: open income − unpaid expenses (draft-fit helper). */
     remainingRoom: number;
 };
@@ -125,16 +127,20 @@ export function computeBudgetMonthSummary(
 
     const plannedIncome = incomeTotals.incomeAmount;
     const plannedExpenses = expenseTotals.totalExpenses;
+    const paid = expenseTotals.paidExpenses;
+    const recordedIncome = incomeTotals.incomeReceived;
     const reserve = plannedIncome - plannedExpenses;
+    const actualReserve = recordedIncome - paid;
     const remainingRoom = incomeTotals.incomeOpen - expenseTotals.unpaidExpenses;
 
     return {
         totalExpenses: plannedExpenses,
-        paid: expenseTotals.paidExpenses,
-        recordedIncome: incomeTotals.incomeReceived,
+        paid,
+        recordedIncome,
         plannedIncome,
         plannedExpenses,
         reserve,
+        actualReserve,
         remainingRoom,
     };
 }
